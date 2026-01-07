@@ -15,11 +15,16 @@ export class ChatService {
     private chatGateway: ChatGateway,
   ) {
     // VAPID keys setup
-    webpush.setVapidDetails(
-      'mailto:admin@qaytarme.uz',
-      process.env.VAPID_PUBLIC_KEY,
-      process.env.VAPID_PRIVATE_KEY
-    );
+    // VAPID keys setup
+    if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+      webpush.setVapidDetails(
+        'mailto:admin@qaytarme.uz',
+        process.env.VAPID_PUBLIC_KEY,
+        process.env.VAPID_PRIVATE_KEY
+      );
+    } else {
+      console.warn('VAPID keys not found. Push notifications will be disabled.');
+    }
   }
 
   async sendMessage(senderId: string, recipientId: string, content: string, itemId?: string) {
