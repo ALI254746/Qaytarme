@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+@theme {
+  --color-mint: #A9D3C9;
+  --color-ivory: #F7F6E2;
+  --color-obsidian: #2E2D2B;
+}
+
+@variant dark (&:where(.dark, .dark *));
+
+/* Base Styles */
+body {
+  background-color: var(--color-ivory);
+  color: var(--color-obsidian);
+}
+
+/* Hide scrollbar but keep functionality */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Animations */
+@keyframes breathe {
+  0% { transform: scale(1); }
+  100% { transform: scale(1.1); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-20px); }
+}
+
+@keyframes bounce {
+  0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+  40% { transform: translateY(-20px); }
+  60% { transform: translateY(-10px); }
+}
+
+.animate-breathe {
+  animation: breathe 8s infinite alternate;
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-bounce-custom {
+  animation: bounce 2s infinite;
+}
+

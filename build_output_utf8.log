@@ -1,0 +1,77 @@
+﻿
+> next.js-darslari@0.1.0 build
+> next build
+
+   Γû▓ Next.js 15.2.2
+   - Environments: .env.local, .env
+
+   Creating an optimized production build ...
+ Γ£ô Compiled successfully
+   Linting and checking validity of types ...
+node.exe : Failed to compile
+.
+At C:\Program Files\nodejs\n
+pm.ps1:29 char:3
++   & $NODE_EXE $NPM_CLI_JS 
+$args
++   ~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~
+    + CategoryInfo          
+    : NotSpecified: (Faile  
+  d to compile.:String) [   
+ ], RemoteException
+    + FullyQualifiedErrorId 
+    : NativeCommandError
+ 
+
+.next/types/app/api/auth/[..
+.nextauth]/route.ts:12:13
+Type error: Type 'OmitWithTa
+g<typeof import("C:/Users/Us
+er/Downloads/musodara--maste
+r/musodara--master/app/api/a
+uth/[...nextauth]/route"), "
+config" | "generateStaticPar
+ams" | "revalidate" | "dynam
+ic" | ... 11 more ... | "PAT
+CH", "">' does not satisfy t
+he constraint '{ [x: string]
+: never; }'.
+  Property 'authOptions' is 
+incompatible with index sign
+ature.
+    Type '{ providers: (OAut
+hConfig<GoogleProfile> | Cre
+dentialsConfig<{ email: { la
+bel: string; type: string; }
+; password: { label: string;
+ type: string; }; }>)[]; cal
+lbacks: { ...; }; pages: { .
+..; }; secret: string | unde
+fined; }' is not assignable 
+to type 'never'.
+
+[0m [90m 10 |[39m[0m
+[0m [90m 11 |[39m [90m//
+ Check that the entry is a v
+alid entry[39m[0m
+[0m[31m[1m>[22m[39m[90
+m 12 |[39m checkFields[33m
+<[39m[33mDiff[39m[33m<[
+39m{[0m
+[0m [90m    |[39m        
+     [31m[1m^[22m[39m[0
+m
+[0m [90m 13 |[39m   [33m
+GET[39m[33m?[39m[33m:[3
+9m [33mFunction[39m[0m
+[0m [90m 14 |[39m   [33m
+HEAD[39m[33m?[39m[33m:[
+39m [33mFunction[39m[0m
+[0m [90m 15 |[39m   [33m
+OPTIONS[39m[33m?[39m[33m
+:[39m [33mFunction[39m[0
+m
+Next.js build worker exited 
+with code: 1 and signal: nul
+l
