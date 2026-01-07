@@ -10,6 +10,7 @@ async function bootstrap() {
     forbidNonWhitelisted: true,
     transform: true,
   }));
+  app.setGlobalPrefix('api');
   app.enableCors(); // Enable CORS for Next.js frontend
   await app.listen(process.env.PORT || 4000); // Usually backend runs on 4000
 }
