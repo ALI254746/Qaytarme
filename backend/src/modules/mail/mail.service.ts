@@ -25,9 +25,9 @@ export class MailService {
 
     try {
       const { data, error } = await this.resend.emails.send({
-        from: 'Kitobdosh <onboarding@resend.dev>',
+        from: 'QaytarMe <noreply@qaytarme.uz>',
         to: [to],
-        subject: 'Emailingizni tasdiqlang - Kitobdosh',
+        subject: 'Emailingizni tasdiqlang - QaytarMe',
         html: `
           <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: auto; padding: 40px; background-color: #F7F6E2; border-radius: 24px;">
             <div style="text-align: center; margin-bottom: 30px;">
@@ -70,9 +70,9 @@ export class MailService {
 
     try {
       const { data, error } = await this.resend.emails.send({
-        from: 'Kitobdosh <onboarding@resend.dev>',
+        from: 'QaytarMe <noreply@qaytarme.uz>',
         to: [to],
-        subject: 'Parolni tiklash - Kitobdosh',
+        subject: 'Parolni tiklash - QaytarMe',
         html: `
           <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: auto; padding: 40px; background-color: #F7F6E2; border-radius: 24px;">
             <div style="text-align: center; margin-bottom: 30px;">
