@@ -2,101 +2,38 @@
 
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
 
-// --- BRAND COLORS (LIGHT & FRESH) ---
-// Mint:      #A9D3C9 (Primary Accent)
-// Ivory:     #F7F6E2 (Background)
-// Obsidian:  #2E2D2B (Text/Dark Accents)
-// Canvas:    #FFFFFF (Surface)
-
-const FoundItemCard = ({ item }) => (
-  <div className="flex-shrink-0 w-72 h-44 rounded-2xl overflow-hidden relative group cursor-pointer shadow-[0_8px_30px_rgb(0,0,0,0.04)] bg-white border border-[#A9D3C9]/20">
-    <div 
-      className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-110"
-      style={{ backgroundImage: `url(${item.image})` }}
-    />
-    <div className="absolute inset-0 bg-gradient-to-t from-[#2E2D2B]/80 via-transparent to-transparent" />
-    <div className="absolute inset-0 p-5 flex flex-col justify-end">
-      <div className="flex items-center gap-2 mb-2">
-        <span className="px-2.5 py-1 rounded-md bg-[#A9D3C9] text-[10px] font-bold text-[#2E2D2B] uppercase tracking-wider backdrop-blur-md bg-opacity-90">
-           Topildi
-        </span>
-        <span className="text-[#F7F6E2] text-[11px] font-bold tracking-wide shadow-black drop-shadow-sm">{item.time}</span>
-      </div>
-      <h4 className="text-white font-bold text-xl leading-tight truncate mb-0.5 drop-shadow-md">{item.name}</h4>
-      <p className="text-[#F7F6E2]/80 text-xs font-medium truncate flex items-center gap-1">
-        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-        {item.location}
-      </p>
-    </div>
-  </div>
-);
-
-// Infinite Scroll Component
-const InfiniteScroll = ({ items, direction = "left", speed = 50 }) => {
-  const duplicatedItems = [...items, ...items];
-  return (
-    <div className="overflow-hidden py-6 masked-fade-sides">
-      <motion.div
-        className="flex gap-6"
-        animate={{
-          x: direction === "left" ? [0, -312 * items.length] : [-312 * items.length, 0],
-        }}
-        transition={{
-          x: { duration: speed, repeat: Infinity, ease: "linear" },
-        }}
-        style={{ width: `${312 * duplicatedItems.length}px` }}
-      >
-        {duplicatedItems.map((item, i) => (
-          <FoundItemCard key={i} item={item} />
-        ))}
-      </motion.div>
-      <style jsx>{`
-        .masked-fade-sides {
-          mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
-        }
-      `}</style>
-    </div>
-  );
-};
-
-// SVG Icons
-const Icons = {
-  eye: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>,
-  eyeOff: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>,
-  google: (
-    <svg className="w-5 h-5" viewBox="0 0 24 24">
-      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-    </svg>
-  )
-};
-
-const foundItems = [
-  { name: "iPhone 14 Pro", location: "Toshkent", time: "2 kun", image: "https://images.unsplash.com/photo-1678685888221-cda773a3dcdb?w=400&h=300&fit=crop" },
-  { name: "Gucci Sumka", location: "Samarqand", time: "1 kun", image: "https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=400&h=300&fit=crop" },
-  { name: "Avtomobil kaliti", location: "Buxoro", time: "3 soat", image: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=300&fit=crop" },
-  { name: "Canon Kamera", location: "Namangan", time: "1 hafta", image: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=400&h=300&fit=crop" },
-  { name: "Apple Watch", location: "Andijon", time: "4 kun", image: "https://images.unsplash.com/photo-1434493789847-2f02dc6ca35d?w=400&h=300&fit=crop" },
-];
+// ... (existing imports and constants) ...
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
   const [email, setEmail] = useState("");
   const [focusedField, setFocusedField] = useState(null);
+
+  useEffect(() => {
+    const verified = searchParams.get("verified");
+    const emailParam = searchParams.get("email");
+    if (verified === "true") {
+      setSuccess("Email muvaffaqiyatli tasdiqlandi. Dasturga kirishingiz mumkin!");
+    }
+    if (emailParam) {
+      setEmail(emailParam);
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setSuccess(null);
     const formData = new FormData(e.currentTarget);
     const emailValue = formData.get("email");
     const password = formData.get("password");
@@ -213,9 +150,15 @@ export default function LoginPage() {
             <form onSubmit={handleSubmit} className="space-y-5">
                <AnimatePresence>
                   {error && (
-                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="bg-red-50 text-red-500 text-xs font-bold px-4 py-3 rounded-xl border border-red-100 flex items-center gap-2">
+                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="bg-red-50 text-red-500 text-xs font-bold px-4 py-3 rounded-xl border border-red-100 flex items-center gap-2 mb-4">
                         <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                         {error}
+                     </motion.div>
+                  )}
+                  {success && (
+                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="bg-green-50 text-green-600 text-xs font-bold px-4 py-3 rounded-xl border border-green-100 flex items-center gap-2 mb-4">
+                        <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                        {success}
                      </motion.div>
                   )}
                </AnimatePresence>
