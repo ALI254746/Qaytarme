@@ -9,6 +9,10 @@ const outfit = Outfit({ subsets: ["latin"] });
 export const metadata = {
   title: "QaytarMe - Topilmalar Byurosi",
   description: "Yo'qolgan buyumlarni topish va qaytarish uchun yagona platforma.",
+  icons: {
+    icon: '/icon-512.png',
+    apple: '/icon-512.png', 
+  },
 };
 
 export default function RootLayout({ children }) {
