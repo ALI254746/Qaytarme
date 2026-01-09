@@ -47,13 +47,18 @@ export class MailService {
 
       if (error) {
         this.logger.error('Resend error:', error);
-        return { success: false, error };
+        let errorMessage = error.message || 'Email service error';
+        if (errorMessage.includes('verified')) {
+          errorMessage += ' (Resend Test Mode: faqat o\'z emailingizga yubora olasiz)';
+        }
+        return { success: false, error: errorMessage };
       }
 
       return { success: true, data };
     } catch (error) {
       this.logger.error('Email yuborishda kutilmagan xatolik:', error);
-      return { success: false, error };
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return { success: false, error: errorMessage };
     }
   }
 
@@ -87,13 +92,18 @@ export class MailService {
 
       if (error) {
         this.logger.error('Resend error:', error);
-        return { success: false, error };
+        let errorMessage = error.message || 'Email service error';
+        if (errorMessage.includes('verified')) {
+          errorMessage += ' (Resend Test Mode: faqat o\'z emailingizga yubora olasiz)';
+        }
+        return { success: false, error: errorMessage };
       }
 
       return { success: true, data };
     } catch (error) {
       this.logger.error('Email yuborishda kutilmagan xatolik:', error);
-      return { success: false, error };
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return { success: false, error: errorMessage };
     }
   }
 }
