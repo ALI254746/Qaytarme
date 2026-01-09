@@ -59,5 +59,10 @@
     "postcss": "^8.5.3",
     "tailwindcss": "^4.1.7",
     "typescript": "^5"
+  },
+  "overrides": {
+    "next-auth": {
+      "next": "$next"
+    }
   }
 }
