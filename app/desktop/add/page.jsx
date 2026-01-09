@@ -432,7 +432,6 @@ export default function AddItemPage() {
                                 className="w-full h-12 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 font-bold text-neutral-900 dark:text-white outline-none focus:border-mint"
                             />
                         </div>
-                        </div>
                         <div className="grid grid-cols-2 gap-4">
                            <div>
                                 <label className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5 block ml-1">{t("add_label_phone")}</label>
