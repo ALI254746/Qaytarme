@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getApiUrl } from "@/lib/api-config";
 
@@ -25,6 +26,7 @@ const steps = [
 ];
 
 export default function ForgotPasswordPage() {
+  const router = useRouter();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -36,6 +38,13 @@ export default function ForgotPasswordPage() {
   const [focusedField, setFocusedField] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
   const [countdown, setCountdown] = useState(0);
+
+  // Mobile Redirect
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      router.replace("/mobile/forgot-password");
+    }
+  }, [router]);
 
   // Email validation
   useEffect(() => {

@@ -99,6 +99,15 @@ function RegisterContent() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  const translateError = (msg) => {
+    if (!msg) return "Xatolik yuz berdi";
+    if (msg.includes("Bad Request")) return "Ma'lumotlar noto'g'ri kiritildi";
+    if (msg.includes("email must be")) return "Email noto'g'ri formatda";
+    if (msg.includes("User already exists")) return "Bu email allaqachon ro'yxatdan o'tgan";
+    if (msg.includes("Email yuborishda")) return "Emailga kod yuborishda xatolik (Tizimda nosozlik)";
+    return msg; // Return original if no match (likely already Uzbek)
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -126,7 +135,8 @@ function RegisterContent() {
           router.push(`/verify?email=${encodeURIComponent(email)}`);
           return;
         }
-        throw new Error(data.error || "Ro'yxatdan o'tishda xatolik yuz berdi");
+        const backendMsg = data.message || data.error || "Xatolik";
+        throw new Error(translateError(backendMsg));
       }
     } catch (err) {
       setError(err.message);

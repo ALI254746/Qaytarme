@@ -22,6 +22,12 @@ function VerifyContent() {
   const inputRefs = useRef([]);
 
   useEffect(() => {
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      const emailParam = email ? `?email=${encodeURIComponent(email)}` : "";
+      router.replace(`/mobile/verify${emailParam}`);
+      return;
+    }
+
     if (!email) {
       router.push("/register");
     }
@@ -74,7 +80,7 @@ function VerifyContent() {
         setResendSuccess(false);
         router.push("/login?verified=true");
       } else {
-        throw new Error(data.error || t('verify_error'));
+        throw new Error(data.message || data.error || t('verify_error'));
       }
     } catch (err) {
       setError(err.message);
