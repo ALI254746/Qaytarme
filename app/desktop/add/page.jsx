@@ -135,7 +135,7 @@ export default function AddItemPage() {
       // Validation logic
       if (currentStep === 1 && !formData.type) return setError(t("add_error_step1"));
       if (currentStep === 2 && (!formData.category || !formData.image)) return setError(t("add_error_step2"));
-      if (currentStep === 3 && (!formData.title || !formData.description || !formData.contactPhone)) return setError(t("add_error_step3"));
+      if (currentStep === 3 && (!formData.title || !formData.description)) return setError(t("add_error_step3"));
       
       setError("");
       setCurrentStep(prev => prev + 1);
@@ -434,7 +434,7 @@ export default function AddItemPage() {
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                            <div>
-                                <label className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5 block ml-1">{t("add_label_phone")}</label>
+                                <label className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5 block ml-1">{t("add_label_phone")} (ixtiyoriy)</label>
                                 <input 
                                    type="tel" 
                                    value={formData.contactPhone}
