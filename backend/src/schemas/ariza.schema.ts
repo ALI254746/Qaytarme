@@ -27,6 +27,9 @@ export class Ariza extends Document {
   phone: string;
 
   @Prop()
+  telegram: string;
+
+  @Prop()
   email: string;
 
   @Prop()

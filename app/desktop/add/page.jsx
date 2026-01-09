@@ -106,6 +106,7 @@ export default function AddItemPage() {
     location: { lat: 41.2995, lng: 69.2401 }, // Tashkent default
     address: "Toshkent",
     contactPhone: "",
+    telegram: "",
     date: new Date().toISOString().split('T')[0]
   });
 
@@ -186,6 +187,7 @@ export default function AddItemPage() {
       data.append("location", formData.address);
       data.append("coordinates", JSON.stringify(formData.location));
       data.append("date", formData.date);
+      data.append("telegram", formData.telegram);
       if (formData.image) {
         data.append("image", formData.image);
       }
@@ -430,15 +432,31 @@ export default function AddItemPage() {
                                 className="w-full h-12 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 font-bold text-neutral-900 dark:text-white outline-none focus:border-mint"
                             />
                         </div>
-                        <div>
-                             <label className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5 block ml-1">{t("add_label_phone")}</label>
-                             <input 
-                                type="tel" 
-                                value={formData.contactPhone}
-                                onChange={(e) => setFormData({...formData, contactPhone: e.target.value})}
-                                placeholder="+998 90 123 45 67"
-                                className="w-full h-12 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 font-bold text-neutral-900 dark:text-white outline-none focus:border-mint"
-                             />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                           <div>
+                                <label className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5 block ml-1">{t("add_label_phone")}</label>
+                                <input 
+                                   type="tel" 
+                                   value={formData.contactPhone}
+                                   onChange={(e) => setFormData({...formData, contactPhone: e.target.value})}
+                                   placeholder="+998 90 123 45 67"
+                                   className="w-full h-12 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 font-bold text-neutral-900 dark:text-white outline-none focus:border-mint"
+                                />
+                           </div>
+                           <div>
+                                <label className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5 block ml-1">Telegram (ixtiyoriy)</label>
+                                <div className="relative">
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 font-bold">@</span>
+                                    <input 
+                                       type="text" 
+                                       value={formData.telegram}
+                                       onChange={(e) => setFormData({...formData, telegram: e.target.value})}
+                                       placeholder="username"
+                                       className="w-full h-12 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl pl-10 pr-4 font-bold text-neutral-900 dark:text-white outline-none focus:border-mint"
+                                    />
+                                </div>
+                           </div>
                         </div>
                     </div>
                   </div>
@@ -546,6 +564,12 @@ export default function AddItemPage() {
                               <p className="text-neutral-400 text-xs font-bold uppercase">{t("add_label_date")}</p>
                               <p className="font-semibold text-neutral-800 dark:text-neutral-200">{formData.date}</p>
                           </div>
+                          {formData.telegram && (
+                              <div className="col-span-2">
+                                  <p className="text-neutral-400 text-xs font-bold uppercase">Telegram</p>
+                                  <p className="font-semibold text-neutral-800 dark:text-neutral-200">@{formData.telegram}</p>
+                              </div>
+                          )}
                           <div className="col-span-2">
                               <p className="text-neutral-400 text-xs font-bold uppercase">{t("add_loc_selected")}</p>
                               <p className="font-semibold text-neutral-800 dark:text-neutral-200">{formData.address}</p>
