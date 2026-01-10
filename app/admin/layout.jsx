@@ -14,6 +14,7 @@ const adminMenuItems = [
   { name: "Foydalanuvchilar", href: "/admin/users", icon: "👥" },
   { name: "Xabarlar", href: "/admin/messages", icon: "💬" },
   { name: "Sahifalar", href: "/desktop/about", icon: "📑" },
+  { name: "Telegram Kanallar", href: "/admin/telegram-channels", icon: "📢" },
   { name: "Statistika", href: "/admin/stats", icon: "📈" },
   { name: "Sozlamalar", href: "/admin/settings", icon: "⚙️" },
 ];

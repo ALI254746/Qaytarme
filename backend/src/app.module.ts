@@ -13,6 +13,8 @@ import { MailModule } from './modules/mail/mail.module';
 import { CloudinaryModule } from './modules/cloudinary/cloudinary.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { AboutModule } from './modules/about/about.module';
+import { TelegramModule } from './modules/telegram/telegram.module';
+import { TranslationModule } from './modules/translation/translation.module';
 
 @Module({
   imports: [
@@ -37,6 +39,8 @@ import { AboutModule } from './modules/about/about.module';
     CloudinaryModule,
     AdminModule,
     AboutModule,
+    TelegramModule,
+    TranslationModule,
   ],
   controllers: [AppController],
   providers: [AppService],

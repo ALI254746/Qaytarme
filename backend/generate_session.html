@@ -1,0 +1,218 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telegram Session Generator</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; background: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .container { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 400px; }
+        h1 { text-align: center; color: #1c1c1e; margin-bottom: 1.5rem; font-size: 1.5rem; }
+        .input-group { margin-bottom: 1rem; }
+        label { display: block; margin-bottom: 0.5rem; color: #666; font-size: 0.9rem; }
+        input { width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; box-sizing: border-box; }
+        button { width: 100%; padding: 0.75rem; background: #0088cc; color: white; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; transition: background 0.2s; }
+        button:hover { background: #0077b5; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        #log { margin-top: 1rem; font-family: monospace; font-size: 0.85rem; color: #333; background: #f8f9fa; padding: 1rem; border-radius: 8px; height: 150px; overflow-y: auto; border: 1px solid #eee; }
+        .hidden { display: none; }
+        .step { display: none; }
+        .step.active { display: block; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Telegram Session Generator</h1>
+        
+        <div id="step1" class="step active">
+            <div class="input-group">
+                <label>API ID</label>
+                <input type="number" id="apiId" value="39869126">
+            </div>
+            <div class="input-group">
+                <label>API Hash</label>
+                <input type="text" id="apiHash" value="47d8fed28ddb23a5542be20f4a6c7a31">
+            </div>
+            <div class="input-group">
+                <label>Phone Number via code (e.g. +998...)</label>
+                <input type="text" id="phone" placeholder="+998901234567">
+            </div>
+            <button onclick="sendCode()" id="btnSend">Send Code</button>
+        </div>
+
+        <div id="step2" class="step">
+            <div class="input-group">
+                <label>Details</label>
+                <p id="sentTo" style="font-size: 0.9rem; color: #666;"></p>
+            </div>
+            <div class="input-group">
+                <label>Code</label>
+                <input type="text" id="code" placeholder="12345">
+            </div>
+            <div class="input-group" id="pwdGroup">
+                <label>Password (2FA) - Optional</label>
+                <input type="password" id="password">
+            </div>
+            <button onclick="login()" id="btnLogin">Login & Generate</button>
+        </div>
+
+        <div id="step3" class="step">
+            <div class="input-group">
+                <label style="color: green; font-weight: bold;">Session String Generated!</label>
+                <textarea id="session" rows="6" readonly style="width:100%; font-family:monospace; font-size:0.8rem;"></textarea>
+            </div>
+            <button onclick="copySession()">Copy to Clipboard</button>
+        </div>
+
+        <div id="log">Logs will appear here...</div>
+    </div>
+
+    <!-- Load GramJS from unpkg -->
+    <script src="https://unpkg.com/telegram@2.22.2/dist/telegram.js"></script>
+
+    <script>
+        // Wait for script to load
+        window.onload = function() {
+            if (typeof telegram === 'undefined') {
+                document.getElementById('log').innerHTML += '<div style="color:red">Error: Telegram library could not be loaded. Please check your internet connection or try a VPN.</div>';
+                return;
+            }
+            console.log("Telegram library loaded!");
+        };
+
+        let client;
+        let phoneStr;
+        let phoneCodeHashStr;
+
+        async function sendCode() {
+            if (typeof telegram === 'undefined') {
+                alert("Telegram library not loaded yet.");
+                return;
+            }
+
+            const { TelegramClient } = telegram;
+            const { StringSession } = telegram.sessions;
+
+            const apiId = Number(document.getElementById('apiId').value);
+            const apiHash = document.getElementById('apiHash').value;
+            // Remove spaces from phone number just in case
+            phoneStr = document.getElementById('phone').value.replace(/\s/g, '');
+
+            if(!apiId || !apiHash || !phoneStr) {
+                log('Error: Please fill all fields');
+                return;
+            }
+
+            document.getElementById('btnSend').disabled = true;
+            log('Initializing client...');
+
+            try {
+                // Initialize client
+                client = new TelegramClient(new StringSession(""), apiId, apiHash, {
+                    connectionRetries: 5,
+                    useWSS: true, 
+                });
+
+                log('Connecting...');
+                await client.connect();
+                log('Connected!');
+
+                log(`Sending code to ${phoneStr}...`);
+                const result = await client.sendCode({
+                    apiId: apiId,
+                    apiHash: apiHash,
+                    phoneNumber: phoneStr,
+                    forceSMS: false
+                });
+
+                phoneCodeHashStr = result.phoneCodeHash;
+                log('Code sent successfully!');
+                
+                document.getElementById('step1').classList.remove('active');
+                document.getElementById('step2').classList.add('active');
+                document.getElementById('sentTo').innerText = `Code sent to ${phoneStr}`;
+
+            } catch (e) {
+                log('Error: ' + e.message);
+                console.error(e);
+                document.getElementById('btnSend').disabled = false;
+            }
+        }
+
+        async function login() {
+            const { Api } = telegram;
+            const code = document.getElementById('code').value;
+            const password = document.getElementById('password').value;
+
+            if(!code) {
+                log('Error: Please enter the code');
+                return;
+            }
+            
+            document.getElementById('btnLogin').disabled = true;
+            log('Logging in...');
+
+            try {
+                await client.invoke(new Api.auth.SignIn({
+                    phoneNumber: phoneStr,
+                    phoneCodeHash: phoneCodeHashStr,
+                    phoneCode: code
+                }));
+                
+                log('Login successful! Generating session...');
+                const sessionString = client.session.save();
+                
+                document.getElementById('session').value = sessionString;
+                document.getElementById('step2').classList.remove('active');
+                document.getElementById('step3').classList.add('active');
+                log('Done!');
+                
+            } catch (e) {
+                if (e.message && e.message.includes('SESSION_PASSWORD_NEEDED')) {
+                    log('2FA Password needed...');
+                    try {
+                         await client.signInWithPassword({
+                            apiId: Number(document.getElementById('apiId').value),
+                            apiHash: document.getElementById('apiHash').value,
+                            password: password,
+                            phoneNumber: phoneStr,
+                            phoneCode: code,
+                            phoneCodeHash: phoneCodeHashStr
+                        });
+
+                         log('Login successful with Password! Generating session...');
+                         const sessionString = client.session.save();
+                         document.getElementById('session').value = sessionString;
+                         document.getElementById('step2').classList.remove('active');
+                         document.getElementById('step3').classList.add('active');
+
+                    } catch (e2) {
+                        log('Error with password: ' + e2.message);
+                         document.getElementById('btnLogin').disabled = false;
+                    }
+                } else {
+                    log('Error: ' + e.message);
+                    console.error(e);
+                    document.getElementById('btnLogin').disabled = false;
+                }
+            }
+        }
+
+        function copySession() {
+            const copyText = document.getElementById("session");
+            copyText.select();
+            document.execCommand("copy");
+            alert("Copied to clipboard! Now paste it in your .env file.");
+        }
+
+        function log(msg) {
+            const el = document.getElementById('log');
+            const time = new Date().toLocaleTimeString();
+            el.innerHTML += `<div>[${time}] ${msg}</div>`;
+            el.scrollTop = el.scrollHeight;
+            console.log(msg);
+        }
+    </script>
+</body>
+</html>

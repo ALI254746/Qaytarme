@@ -1,0 +1,12 @@
+<svg width="640" height="360" viewBox="0 0 640 360" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="640" height="360" fill="#F7F6E2"/>
+<!-- Logo Cube -->
+<g transform="translate(140, 100) scale(0.6)">
+<path d="M128 64L238.853 128V256L128 320L17.1472 256V128L128 64Z" fill="#A9D3C9" stroke="#2E2D2B" stroke-width="24" stroke-linejoin="round"/>
+<path d="M128 64V192M128 192L238.853 128M128 192L17.1472 128" stroke="#2E2D2B" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M128 192V320" stroke="#2E2D2B" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<!-- Text -->
+<text x="320" y="190" font-family="Arial, sans-serif" font-weight="bold" font-size="64" fill="#2E2D2B">QaytarMe</text>
+<text x="320" y="230" font-family="Arial, sans-serif" font-size="24" fill="#6B7280">Topilmalar Byurosi</text>
+</svg>

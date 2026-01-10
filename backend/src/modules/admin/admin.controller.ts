@@ -99,6 +99,27 @@ export class AdminController {
     return this.adminService.getChatHistory(userId);
   }
 
+  // --- Telegram Settings ---
+
+  @Get('telegram-channels')
+  async getTelegramChannels(@Req() req: any) {
+    this.checkAdmin(req);
+    return this.adminService.getChannels();
+  }
+
+  @Post('telegram-channels')
+  async addTelegramChannel(@Body() body: { username: string; description?: string }, @Req() req: any) {
+    this.checkAdmin(req);
+    if (!body.username) throw new Error("Username required");
+    return this.adminService.addChannel(body.username, body.description || "", (req.user.id as string) || "");
+  }
+
+  @Delete('telegram-channels/:id')
+  async removeTelegramChannel(@Param('id') id: string, @Req() req: any) {
+      this.checkAdmin(req);
+      return this.adminService.removeChannel(id);
+  }
+
   private checkAdmin(req: any) {
     if (req.user.role !== 'admin') {
       throw new ForbiddenException('Ushbu amal uchun huquqingiz yo\'q');

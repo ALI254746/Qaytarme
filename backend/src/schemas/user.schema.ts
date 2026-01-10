@@ -12,6 +12,9 @@ export class User extends Document {
   @Prop({ required: true })
   password: string;
 
+  @Prop({ unique: true, sparse: true })
+  telegramId: number;
+
   @Prop({ default: 0 })
   points: number;
 

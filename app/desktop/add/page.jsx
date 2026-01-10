@@ -187,6 +187,7 @@ export default function AddItemPage() {
       data.append("location", formData.address);
       data.append("coordinates", JSON.stringify(formData.location));
       data.append("date", formData.date);
+      data.append("phone", formData.contactPhone);
       data.append("telegram", formData.telegram);
       if (formData.image) {
         data.append("image", formData.image);

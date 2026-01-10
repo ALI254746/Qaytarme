@@ -3,6 +3,7 @@ import React from "react";
 import Providers from "./providers";
 
 import { Outfit } from "next/font/google";
+import TelegramLogic from "./components/TelegramLogic";
 
 const outfit = Outfit({ subsets: ["latin"] });
 
@@ -18,10 +19,16 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="uz" suppressHydrationWarning>
+      <head>
+        <script src="https://telegram.org/js/telegram-web-app.js" async></script>
+      </head>
       <body
         className={`${outfit.className} antialiased bg-[var(--color-ivory)] text-[var(--color-obsidian)]`}
       >
-        <Providers>{children}</Providers>
+        <Providers>
+          <TelegramLogic />
+          {children}
+        </Providers>
       </body>
     </html>
   );

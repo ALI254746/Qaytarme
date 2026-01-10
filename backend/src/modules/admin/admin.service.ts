@@ -5,6 +5,7 @@ import { Model, Types } from 'mongoose';
 import { Ariza } from '../../schemas/ariza.schema';
 import { User } from '../../schemas/user.schema';
 import { Message } from '../../schemas/message.schema';
+import { TelegramChannel } from '../../schemas/telegram-channel.schema';
 
 import { ChatGateway } from '../chat/chat.gateway';
 
@@ -14,6 +15,7 @@ export class AdminService {
     @InjectModel(Ariza.name) private arizaModel: Model<Ariza>,
     @InjectModel(User.name) private userModel: Model<User>,
     @InjectModel(Message.name) private messageModel: Model<Message>,
+    @InjectModel(TelegramChannel.name) private channelModel: Model<TelegramChannel>,
     private chatGateway: ChatGateway,
   ) {}
 
@@ -370,5 +372,33 @@ export class AdminService {
         console.error("[clearAllMessages] Error:", error);
         throw error;
     }
+  }
+
+  // --- Telegram Channel Management ---
+
+  async addChannel(username: string, description: string, adminId: string) {
+    // Clean username (remove @ if present)
+    const cleanUsername = username.replace('@', '').trim();
+    
+    // Check if exists
+    const exists = await this.channelModel.findOne({ username: cleanUsername });
+    if (exists) {
+        throw new Error("Kanal allaqachon mavjud");
+    }
+
+    return this.channelModel.create({
+        username: cleanUsername,
+        description,
+        addedBy: adminId,
+        isActive: true
+    });
+  }
+
+  async removeChannel(id: string) {
+    return this.channelModel.findByIdAndDelete(id);
+  }
+
+  async getChannels() {
+    return this.channelModel.find().sort({ createdAt: -1 });
   }
 }

@@ -51,4 +51,10 @@ export class AuthController {
   async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
     return this.authService.resetPassword(resetPasswordDto);
   }
+
+  @Post('telegram')
+  @HttpCode(HttpStatus.OK)
+  async telegramLogin(@Body() data: { id: number; first_name: string; username?: string; photo_url?: string; hash: string }) {
+     return this.authService.telegramLogin(data);
+  }
 }

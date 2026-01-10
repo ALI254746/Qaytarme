@@ -42,6 +42,10 @@ export class Ariza extends Document {
   itemDescription: string;
 
   @Prop()
+  category: string;
+
+
+  @Prop()
   date: string;
 
   @Prop()

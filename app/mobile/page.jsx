@@ -5,8 +5,15 @@ import Link from "next/link";
 import { useLanguage } from "@/context/LanguageContext";
 import { getApiUrl } from "@/lib/api-config";
 
+import { useSession, signIn } from "next-auth/react";
+import { useTelegram } from "@/app/hooks/useTelegram";
+
 export default function MobileHomePage() {
   const { t } = useLanguage();
+  const { data: session } = useSession();
+  const { user: tgUser, tg } = useTelegram();
+  const [isTelegramAuthenticating, setIsTelegramAuthenticating] = useState(false);
+
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState('all'); // all, lost, found
@@ -17,6 +24,9 @@ export default function MobileHomePage() {
   const [pullStartPoint, setPullStartPoint] = useState(0);
   const [pullChange, setPullChange] = useState(0);
   const refreshThreshold = 80;
+
+  const refreshThreshold = 80;
+
 
   const CATEGORIES = [
     { id: "electronics", icon: "📱" },

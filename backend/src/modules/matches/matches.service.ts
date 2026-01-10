@@ -114,10 +114,15 @@ export class MatchesService {
         let score = 0;
         const reasons: string[] = [];
 
-        // 1. Critical Match: Type (30%)
+        // 1. Critical Match: Category (20%) & Type (20%)
+        if (newItem.category && candidate.category && newItem.category === candidate.category) {
+            score += 20;
+            reasons.push('Kategoriya');
+        }
+
         if (newItem.itemType === candidate.itemType) {
-          score += 30;
-          reasons.push('Kategoriya');
+          score += 20;
+          reasons.push('Buyum turi');
         }
 
         // 2. Geography: Region (15%) & District (15%)
@@ -134,12 +139,12 @@ export class MatchesService {
         const daysDiff = dateDiff / (1000 * 3600 * 24);
         if (daysDiff <= 7) score += 10; 
 
-        // 4. Semantic / Description Match (25%)
+        // 4. Semantic / Description Match (20%)
         const nameSim = this.calculateSemanticSimilarity(newItem.itemName, candidate.itemName);
         const descSim = this.calculateSemanticSimilarity(newItem.itemDescription, candidate.itemDescription);
         const textScore = Math.max(nameSim, descSim);
         
-        if (textScore > 80) { score += 25; reasons.push('Matn'); } 
+        if (textScore > 80) { score += 20; reasons.push('Matn'); } 
         else if (textScore > 40) { score += 10; }
         
         // 5. Image AI Check (20%) - Google Cloud Vision

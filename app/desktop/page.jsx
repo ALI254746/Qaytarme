@@ -87,17 +87,89 @@ const ItemCard = ({ item }) => {
       >
         {/* Image Section */}
         <div className="relative h-64 overflow-hidden">
-          {item.image?.url || (typeof item.image === 'string' && item.image) ? (
-            <img
-              src={item.image?.url || item.image}
-              alt={item.itemType}
-              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-            />
-          ) : (
-            <div className="w-full h-full bg-[#F7F6E2] dark:bg-neutral-800 flex items-center justify-center text-5xl opacity-50">
-              📦
-            </div>
-          )}
+          {(() => {
+            let imageUrl = item.image?.url || (typeof item.image === 'string' ? item.image : null);
+            
+            // Force HTTPS if it's a Cloudinary URL
+            if (imageUrl && imageUrl.startsWith('http:')) {
+                imageUrl = imageUrl.replace('http:', 'https:');
+            }
+            
+            // Debug log (remove later)
+            console.log('Rendering Image:', { id: item._id, raw: item.image, final: imageUrl });
+
+            const categoryIcons = {
+              electronics: "💻",
+              documents: "📄",
+              personal: "💼",
+              clothing: "👕",
+              accessories: "⌚",
+              keys: "🔑", 
+              bags: "🎒",
+              automotive: "🚗",
+              kids: "🧸",
+              sports: "⚽",
+              books: "📚",
+              pets: "🐾",
+              other: "📦",
+              all: "🔍"
+            };
+
+            // Smart Text Analysis
+            const getSmartIcon = () => {
+               const text = (item.itemType + " " + (item.itemName || "")).toLowerCase();
+               
+               if (text.match(/iphone|samsung|redmi|xiaomi|telefon|tel/)) return "📱";
+               if (text.match(/macbook|laptop|noutbuk|kompyuter/)) return "💻";
+               if (text.match(/airpods|naushnik|quloqchin|buds/)) return "🎧";
+               if (text.match(/pasport|passport/)) return "🛂";
+               if (text.match(/prava|guvohnoma|id karta|card|karta/)) return "🪪";
+               if (text.match(/sumka|bag|ryukzak/)) return "🎒";
+               if (text.match(/hamyon|kashalok|wallet/)) return "👛";
+               if (text.match(/soat|watch/)) return "⌚";
+               if (text.match(/mashina|avto|spark|gentra|cobalt|malibu/)) return "🚗";
+               if (text.match(/kalit|key/)) return "🔑";
+               if (text.match(/kuchuk|it|dog/)) return "🐕";
+               if (text.match(/mushuk|cat/)) return "🐈";
+               if (text.match(/velosiped|velik/)) return "🚲";
+               
+               return categoryIcons[item.category] || "📦";
+            };
+
+            const fallbackIcon = getSmartIcon();
+
+            return imageUrl ? (
+              <img
+                src={imageUrl}
+                alt={item.itemType}
+                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                onError={(e) => { 
+                    console.error('Image Load Error:', imageUrl);
+                    e.currentTarget.style.display = 'none'; 
+                    e.currentTarget.nextSibling.style.display = 'flex'; 
+                }}
+              />
+            ) : (
+                <div className={`w-full h-full flex flex-col items-center justify-center text-6xl relative overflow-hidden ${
+                   item.status === 'lost' ? 'bg-red-50 dark:bg-red-900/20' : 'bg-[#A9D3C9]/20 dark:bg-[#A9D3C9]/10'
+                }`}>
+                   <div className="absolute inset-0 opacity-10 bg-[url('https://grainy-gradients.vercel.app/noise.svg')]"></div>
+                   <motion.div 
+                     initial={{ scale: 0.5, opacity: 0 }}
+                     animate={{ scale: 1, opacity: 1 }}
+                     transition={{ type: "spring", stiffness: 200 }}
+                     className="z-10 drop-shadow-2xl grayscale-[0.2] group-hover:scale-110 transition-transform duration-500"
+                   >
+                      {fallbackIcon}
+                   </motion.div>
+                </div>
+            );
+          })()}
+          
+          {/* Fallback container */}
+          <div className="hidden absolute inset-0 w-full h-full bg-[#F7F6E2] dark:bg-neutral-800 items-center justify-center text-5xl opacity-50">
+             📦
+          </div>
           
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80" />
 
@@ -234,7 +306,7 @@ export default function DashboardPage() {
      setPage(1);
      setHasMore(true);
      fetchItems(1, true);
-  }, [searchQuery, filter, category]);
+  }, [searchQuery, filter, category, lang]);
 
   // Fetch more 
   useEffect(() => {
@@ -251,39 +323,15 @@ export default function DashboardPage() {
            limit: 12,
            search: searchQuery,
            status: filter !== 'all' ? filter : '',
-           category: category !== 'all' ? t('cat_' + category) : '' 
+           category: category !== 'all' ? category : '',
+           lang: lang 
         });
 
-        // Hack to support Uzbek backend filtering
-        let categoryParam = '';
-        if (category !== 'all') {
-             const uzLabels = {
-                 electronics: "Elektronika",
-                 documents: "Hujjatlar",
-                 personal: "Shaxsiy buyumlar",
-                 clothing: "Kiyim-kechak",
-                 accessories: "Aksessuarlar",
-                 keys: "Kalitlar",
-                 bags: "Sumkalar",
-                 automotive: "Avtomobil buyumlari",
-                 kids: "Bolalar buyumlari",
-                 sports: "Sport anjomlari",
-                 books: "Kitoblar",
-                 pets: "Uy hayvonlari",
-                 other: "Boshqa"
-             };
-             categoryParam = uzLabels[category] || category;
-        }
+        const url = getApiUrl(`ariza?${queryParams}`);
+        console.log('Frontend Fetching Items URL:', url);
+        console.log('Frontend Selected Category:', category);
 
-        const finalParams = new URLSearchParams({
-           page: pageNum,
-           limit: 12,
-           search: searchQuery,
-           status: filter !== 'all' ? filter : '',
-           category: categoryParam
-        });
-
-        const res = await fetch(getApiUrl(`ariza?${finalParams}`));
+        const res = await fetch(url);
         const data = await res.json();
 
         if (res.ok) {

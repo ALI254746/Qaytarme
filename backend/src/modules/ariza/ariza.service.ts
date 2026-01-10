@@ -7,6 +7,8 @@ import { User } from '../../schemas/user.schema';
 import { MatchesService } from '../matches/matches.service';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
+import { TranslationService } from '../translation/translation.service';
+
 @Injectable()
 export class ArizaService {
   constructor(
@@ -14,6 +16,7 @@ export class ArizaService {
     @InjectModel('User') private userModel: Model<User>,
     private matchesService: MatchesService,
     private cloudinaryService: CloudinaryService,
+    private translationService: TranslationService,
   ) {}
 
   async confirmHandover(arizaId: string, userId: string, otherUserId: string) {
@@ -134,8 +137,93 @@ export class ArizaService {
     return ariza;
   }
 
+  // --- Transliteration Helper ---
+  // --- Transliteration Helper ---
+  private transliterateCyrillicToLatin(text: string): string {
+    if (!text) return text;
+    const map = {
+      'А': 'A', 'Б': 'B', 'В': 'V', 'Г': 'G', 'Д': 'D', 'Е': 'E', 'Ё': 'Yo',
+      'Ж': 'J', 'З': 'Z', 'И': 'I', 'Й': 'Y', 'К': 'K', 'Л': 'L', 'М': 'M',
+      'Н': 'N', 'О': 'O', 'П': 'P', 'Р': 'R', 'С': 'S', 'Т': 'T', 'У': 'U',
+      'Ф': 'F', 'Х': 'X', 'Ц': 'Ts', 'Ч': 'Ch', 'Ш': 'Sh', 'Щ': 'Sh', 'Ъ': '',
+      'Ы': 'I', 'Ь': '', 'Э': 'E', 'Ю': 'Yu', 'Я': 'Ya', 'Ў': 'O\'', 'Қ': 'Q',
+      'Ғ': 'G\'', 'Ҳ': 'H',
+      'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'yo',
+      'ж': 'j', 'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm',
+      'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u',
+      'ф': 'f', 'х': 'x', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'sh', 'ъ': '',
+      'ы': 'i', 'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya', 'ў': 'o\'', 'қ': 'q',
+      'ғ': 'g\'', 'ҳ': 'h'
+    };
+
+    return text.split('').map(char => map[char] || char).join('');
+  }
+
+  async create(userId: string, data: any, file?: Express.Multer.File | { url: string }) {
+    try {
+      let imageData: { url: string; publicId?: string } | null = null;
+      
+      // Handle Image
+      if (file) {
+        if ('url' in file) {
+            // It's a URL object (from Telegram)
+            imageData = { url: file.url };
+        } else {
+            // It's a Multer file (from Controller)
+            const result = await this.cloudinaryService.uploadFile(file);
+            imageData = {
+                url: result.secure_url,
+                publicId: result.public_id
+            };
+        }
+      } else if (data.image) {
+         // Fallback if image data is passed directly in body
+         imageData = data.image;
+      }
+
+      // Transliterate fields
+      const newItemData = {
+          ...data,
+          itemType: this.transliterateCyrillicToLatin(data.itemType),
+          itemName: this.transliterateCyrillicToLatin(data.itemName),
+          itemDescription: this.transliterateCyrillicToLatin(data.itemDescription),
+          fullName: this.transliterateCyrillicToLatin(data.fullName),
+      };
+
+      // Parse coordinates if string
+      let coordinates = newItemData.coordinates;
+      if (typeof coordinates === 'string') {
+        try {
+          coordinates = JSON.parse(coordinates);
+        } catch (e) {
+          coordinates = null;
+        }
+      }
+
+      const newAriza = new this.arizaModel({
+        ...newItemData,
+        coordinates,
+        image: imageData,
+        moderationStatus: 'approved',
+        user: new Types.ObjectId(userId),
+      });
+
+      const savedAriza = await newAriza.save();
+      
+      // AI Matching
+      this.matchesService.findAndCreateMatches(savedAriza).catch(err => console.error('Matching trigger failed:', err));
+
+      return savedAriza;
+    } catch (error) {
+      console.error('Error creating Ariza:', error);
+      throw new InternalServerErrorException(error.message);
+    }
+  }
+
   async findAll(query: any) {
     const { status, category, search, page = 1, limit = 10 } = query;
+    console.log('ArizaService.findAll Query:', query);
+    
     const skip = (page - 1) * limit;
 
     const filter: any = { moderationStatus: 'approved' };
@@ -144,8 +232,8 @@ export class ArizaService {
       filter.status = status;
     }
     
-    if (category && category !== 'Barchasi') {
-      filter.itemType = category;
+    if (category && category !== 'all') {
+      filter.category = category;
     }
 
     if (search) {
@@ -156,6 +244,8 @@ export class ArizaService {
         { fullName: { $regex: search, $options: 'i' } }
       ];
     }
+    
+    console.log('ArizaService.findAll Filter:', JSON.stringify(filter, null, 2));
 
     const total = await this.arizaModel.countDocuments(filter);
     const arizalar = await this.arizaModel.find(filter)
@@ -165,52 +255,26 @@ export class ArizaService {
       .limit(limit)
       .exec();
 
+    // Translate if targetLang is provided
+    const targetLang = query.lang;
+    const translatedArizalar = await Promise.all(arizalar.map(async (ariza) => {
+        const item = ariza.toObject();
+        if (targetLang && targetLang !== 'uz') { // Default/Source likely Uzbek
+             item.itemType = await this.translationService.translate(item.itemType, targetLang);
+             item.itemName = await this.translationService.translate(item.itemName, targetLang);
+             item.itemDescription = await this.translationService.translate(item.itemDescription, targetLang);
+        }
+        return item;
+    }));
+
     return {
-      arizalar,
+      arizalar: translatedArizalar,
       total,
-      hasMore: total > skip + arizalar.length,
+      hasMore: total > skip + translatedArizalar.length,
     };
   }
 
-  async create(userId: string, data: any, file?: Express.Multer.File) {
-    try {
-      let imageData: any = null;
-      if (file) {
-        const result = await this.cloudinaryService.uploadFile(file);
-        imageData = {
-          url: result.secure_url,
-          publicId: result.public_id,
-        };
-      }
 
-      let coordinates = data.coordinates;
-      if (typeof coordinates === 'string') {
-        try {
-          coordinates = JSON.parse(coordinates);
-        } catch (e) {
-          coordinates = null;
-        }
-      }
-
-      const newAriza = new this.arizaModel({
-        ...data,
-        coordinates,
-        image: imageData,
-        moderationStatus: 'approved',
-        user: new Types.ObjectId(userId),
-      });
-
-      const savedAriza = await newAriza.save();
-      
-      // Trigger matching in background
-      this.matchesService.findAndCreateMatches(savedAriza).catch(err => console.error('Matching trigger failed:', err));
-
-      return savedAriza;
-    } catch (error) {
-      console.error('Create Ariza Error:', error);
-      throw new InternalServerErrorException('Error creating ariza');
-    }
-  }
 
   async findById(id: string) {
     return this.arizaModel.findById(id).populate('user', 'name email avatar').exec();

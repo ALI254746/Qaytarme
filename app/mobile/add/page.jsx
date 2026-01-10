@@ -111,6 +111,7 @@ export default function MobileAddItemPage() {
     location: { lat: 41.2995, lng: 69.2401 }, // Tashkent default
     address: "Toshkent",
     contactPhone: "",
+    telegram: "",
     date: new Date().toISOString().split('T')[0]
   });
 
@@ -192,6 +193,8 @@ export default function MobileAddItemPage() {
       data.append("location", formData.address);
       data.append("coordinates", JSON.stringify(formData.location));
       data.append("date", formData.date);
+      data.append("phone", formData.contactPhone);
+      data.append("telegram", formData.telegram);
       if (formData.image) {
         data.append("image", formData.image);
       }
@@ -391,6 +394,17 @@ export default function MobileAddItemPage() {
                             className="w-full h-14 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl px-4 font-bold text-neutral-900 dark:text-white outline-none focus:border-mint"
                          />
                     </div>
+
+                    <div>
+                         <label className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5 block ml-1">Telegram</label>
+                         <input 
+                            type="text" 
+                            value={formData.telegram}
+                            onChange={(e) => setFormData({...formData, telegram: e.target.value})}
+                            placeholder="@username"
+                            className="w-full h-14 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl px-4 font-bold text-neutral-900 dark:text-white outline-none focus:border-mint"
+                         />
+                    </div>
                 </div>
               )}
 
@@ -468,6 +482,7 @@ export default function MobileAddItemPage() {
                              <div>
                                 <p className="text-[10px] font-bold text-neutral-400 uppercase">{t('add_review_contact')}</p>
                                 <p className="text-sm font-bold">{formData.contactPhone}</p>
+                                {formData.telegram && <p className="text-xs text-neutral-500 mt-0.5">{formData.telegram}</p>}
                              </div>
                              <div className="col-span-2">
                                 <p className="text-[10px] font-bold text-neutral-400 uppercase">{t('add_review_address')}</p>
