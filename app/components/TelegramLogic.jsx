@@ -43,7 +43,11 @@ export default function TelegramLogic() {
       loginWithTelegram();
     }
 
+    /* 
     // --- 2. Platform Redirect (Mobile vs Desktop) ---
+    // DISABLED: Because it conflicts with responsive web design logic.
+    // Let app/page.jsx handle redirects based on screen width.
+    
     // If we are inside Telegram, we can check tg.platform
     // Platforms: 'android', 'ios', 'tdesktop', 'macos', 'web', 'weba', 'unknown'
     
@@ -66,6 +70,7 @@ export default function TelegramLogic() {
             router.replace('/desktop');
         }
     }
+    */
 
   }, [tg, tgUser, session, isAuthenticating, pathname, router]);
 

@@ -167,119 +167,82 @@ function MobileProfileContent() {
   const currentLangLabel = languages.find(l => l.code === lang)?.label || 'O\'zbekcha';
 
   return (
-    <div className="min-h-screen bg-neutral-100 dark:bg-black pb-32">
+    <div className="min-h-screen bg-white dark:bg-black pb-24">
        
-       {/* Top Profile Card */}
-       <div className="bg-white dark:bg-neutral-900 pb-8 pt-6 mb-4 shadow-sm rounded-b-[2.5rem]">
-          <div className="flex flex-col items-center justify-center relative px-6">
-             <div className="relative mb-3 group">
-               <div className="w-24 h-24 rounded-full p-1 border-2 border-neutral-100 dark:border-neutral-800 relative overflow-hidden">
-                  <img src={userImage} alt="Profile" className="w-full h-full object-cover rounded-full" />
-                  {uploadingAvatar && <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-full"><div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"/></div>}
-               </div>
-               <label className="absolute bottom-0 right-0 bg-mint w-8 h-8 rounded-full flex items-center justify-center shadow-lg cursor-pointer active:scale-95 transition-transform">
-                  <svg className="w-4 h-4 text-neutral-900" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                  <input type="file" className="hidden" accept="image/*" onChange={handleAvatarUpload} />
-               </label>
+       {/* Instagram-style Header */}
+       <div className="px-4 pt-12 pb-4">
+          
+          {/* Top Row: Avatar & Stats */}
+          <div className="flex items-center gap-6 mb-4">
+             {/* Avatar */}
+             <div className="relative shrink-0">
+                 <div className="w-20 h-20 rounded-full p-0.5 border border-neutral-200 dark:border-neutral-800 relative z-10">
+                    <img src={userImage} alt="Profile" className="w-full h-full object-cover rounded-full" />
+                 </div>
+                 <label className="absolute bottom-0 right-0 bg-blue-500 w-6 h-6 rounded-full flex items-center justify-center cursor-pointer border-2 border-white dark:border-black z-20">
+                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                    <input type="file" className="hidden" accept="image/*" onChange={handleAvatarUpload} />
+                 </label>
              </div>
-             
-             <h1 className="text-xl font-bold text-neutral-900 dark:text-white mb-0.5">{userData?.name}</h1>
-             <p className="text-sm text-neutral-500 mb-4">{userData?.phone || userData?.email}</p>
-             
-             {/* Badges List - Moved here for better layout */}
+
+             {/* Stats */}
+             <div className="flex-1 flex justify-around">
+                 <div className="flex flex-col items-center">
+                    <span className="font-bold text-lg text-neutral-900 dark:text-white leading-tight">{userData?.stats?.found || 0}</span>
+                    <span className="text-[11px] text-neutral-500">Topilgan</span>
+                 </div>
+                 <div className="flex flex-col items-center">
+                    <span className="font-bold text-lg text-neutral-900 dark:text-white leading-tight">{userData?.stats?.lost || 0}</span>
+                    <span className="text-[11px] text-neutral-500">Yo'qotilgan</span>
+                 </div>
+                 <div className="flex flex-col items-center">
+                    <span className="font-bold text-lg text-neutral-900 dark:text-white leading-tight">{userData?.stats?.inProcess || 0}</span>
+                    <span className="text-[11px] text-neutral-500">Jarayonda</span>
+                 </div>
+             </div>
+          </div>
+
+          {/* Bio Section */}
+          <div className="mb-4 px-1">
+             <h1 className="text-sm font-bold text-neutral-900 dark:text-white">{userData?.name}</h1>
+             <p className="text-sm text-neutral-500 whitespace-pre-wrap">{userData?.phone || userData?.email}</p>
              {userData?.badges?.length > 0 && (
-                 <div className="flex flex-wrap justify-center gap-2 mb-6">
-                     {userData.badges.map((badge, i) => (
-                        <div key={i} className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded-full border border-yellow-200 dark:border-yellow-800">
-                           <span className="text-xs">🏅</span>
-                           <span className="text-[10px] font-bold uppercase tracking-wide">{badge}</span>
-                        </div>
-                     ))}
+                 <div className="text-xs text-blue-500 mt-1">
+                     {userData.badges.join(" • ")}
                  </div>
              )}
-             
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-2">
              <button 
                onClick={() => setShowEditProfile(true)}
-               className="px-8 py-2.5 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-full text-xs font-bold uppercase tracking-wider shadow-lg shadow-neutral-200 dark:shadow-neutral-800 hover:scale-105 transition-transform"
+               className="flex-1 py-1.5 bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white rounded-lg text-xs font-bold border border-transparent active:scale-95 transition-transform"
              >
-               {t('edit_profile') || "Profilni tahrirlash"}
+               Tahrirlash
+             </button>
+             <button 
+               onClick={() => router.push('/mobile/share')}
+               className="flex-1 py-1.5 bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white rounded-lg text-xs font-bold border border-transparent active:scale-95 transition-transform"
+             >
+               Ulashish
              </button>
           </div>
+
        </div>
 
-       {/* Detailed Statistics Section */}
-       <div className="px-4 mb-8">
-           <h3 className="px-2 mb-3 text-xs font-bold text-neutral-400 uppercase tracking-widest">Statistika</h3>
-           <div className="grid grid-cols-2 gap-3">
-               {/* 1. Topganlarim (Found by me) */}
-               <div className="bg-white dark:bg-neutral-900 p-5 rounded-[2rem] border border-mint/20 shadow-sm flex flex-col justify-between gap-4 group active:scale-95 transition-transform">
-                    <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-lg bg-mint/10 text-mint">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 12v10H4V12"></path><path d="M2 7h20v5H2z"></path><path d="M12 22V7"></path><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"></path><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"></path></svg>
-                    </div>
-                    <div>
-                        <p className="text-[9px] font-black uppercase text-neutral-400 dark:text-neutral-500 tracking-widest mb-1">Topganlarim</p>
-                        <h3 className="text-2xl font-black text-neutral-900 dark:text-white leading-none">{userData?.stats?.found || 0}</h3>
-                    </div>
-               </div>
+       {/* Divider (Optional, or just start list) */}
+       {/* <div className="h-px bg-neutral-100 dark:bg-neutral-800 mx-4 mb-2" /> */}
 
-               {/* 2. Yo'qotganlarim (Lost by me) */}
-               <div className="bg-white dark:bg-neutral-900 p-5 rounded-[2rem] border border-red-500/20 shadow-sm flex flex-col justify-between gap-4 group active:scale-95 transition-transform">
-                    <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-lg bg-red-500/10 text-red-500">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-                    </div>
-                    <div>
-                        <p className="text-[9px] font-black uppercase text-neutral-400 dark:text-neutral-500 tracking-widest mb-1">Yo'qotganlarim</p>
-                        <h3 className="text-2xl font-black text-neutral-900 dark:text-white leading-none">{userData?.stats?.lost || 0}</h3>
-                    </div>
-               </div>
-
-               {/* 3. Topib berishgan (Found for me) */}
-               <div className="bg-white dark:bg-neutral-900 p-5 rounded-[2rem] border border-blue-500/20 shadow-sm flex flex-col justify-between gap-4 group active:scale-95 transition-transform">
-                    <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-lg bg-blue-500/10 text-blue-500">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><polyline points="17 11 19 13 23 9"></polyline></svg>
-                    </div>
-                    <div>
-                        <p className="text-[9px] font-black uppercase text-neutral-400 dark:text-neutral-500 tracking-widest mb-1">Topib berishgan</p>
-                        <h3 className="text-2xl font-black text-neutral-900 dark:text-white leading-none">{userData?.stats?.returnedToMe || 0}</h3>
-                    </div>
-               </div>
-
-               {/* 4. Topib berganman (Returned by me) */}
-               <div className="bg-white dark:bg-neutral-900 p-5 rounded-[2rem] border border-amber-500/20 shadow-sm flex flex-col justify-between gap-4 group active:scale-95 transition-transform">
-                    <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-lg bg-amber-500/10 text-amber-500">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg>
-                    </div>
-                    <div>
-                        <p className="text-[9px] font-black uppercase text-neutral-400 dark:text-neutral-500 tracking-widest mb-1">Topib berganman</p>
-                        <h3 className="text-2xl font-black text-neutral-900 dark:text-white leading-none">{userData?.stats?.returnedByMe || 0}</h3>
-                    </div>
-               </div>
-
-               {/* 5. Jarayonda (In Progress) full width */}
-               <div className="col-span-2 bg-white dark:bg-neutral-900 p-5 rounded-[2rem] border border-purple-500/20 shadow-sm flex items-center justify-between gap-4 group active:scale-95 transition-transform">
-                    <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-lg bg-purple-500/10 text-purple-500">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                        </div>
-                        <div>
-                            <p className="text-[9px] font-black uppercase text-neutral-400 dark:text-neutral-500 tracking-widest mb-1">Jarayonda</p>
-                            <h3 className="text-xl font-bold text-neutral-900 dark:text-white leading-none">Faol kelishuvlar</h3>
-                        </div>
-                    </div>
-                    <div className="text-3xl font-black text-neutral-900 dark:text-white pr-2">{userData?.stats?.inProcess || 0}</div>
-               </div>
-           </div>
-       </div>
-
-       {/* Settings Groups */}
-       <div className="space-y-6">
+       {/* Settings Groups (iOS/Instagram Style) */}
+       <div className="space-y-6 px-4 mt-2">
           
           {/* Section: App Settings */}
           <div>
-            <SectionHeader title={t('app_settings') || "Ilova sozlamalari"} />
-            <div className="border-y border-neutral-200 dark:border-neutral-800">
+            <SectionHeader title="Ilova Sozlamalari" />
+            <div className="bg-white dark:bg-neutral-900 rounded-xl overflow-hidden shadow-sm border border-neutral-200 dark:border-neutral-800">
                <MenuItem 
-                  icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>}
+                  icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>}
                   label={t('theme_dark') || "Tungi rejim"}
                   hasToggle
                   isToggled={isDarkMode}
@@ -287,7 +250,7 @@ function MobileProfileContent() {
                   chevron={false}
                />
                <MenuItem 
-                  icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>}
+                  icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>}
                   label={t('select_language') || "Til"}
                   value={currentLangLabel}
                   onClick={() => setShowLanguageSheet(true)}
@@ -298,21 +261,13 @@ function MobileProfileContent() {
           {/* Section: Notifications */}
           <div>
             <SectionHeader title={t('notifications') || "Bildirishnomalar"} />
-            <div className="border-y border-neutral-200 dark:border-neutral-800">
+            <div className="bg-white dark:bg-neutral-900 rounded-xl overflow-hidden shadow-sm border border-neutral-200 dark:border-neutral-800">
                <MenuItem 
-                  icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>}
+                  icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>}
                   label={t('push_notifications') || "Push xabarlar"}
                   hasToggle
                   isToggled={pushEnabled}
                   onClick={() => setPushEnabled(!pushEnabled)}
-                  chevron={false}
-               />
-               <MenuItem 
-                  icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>}
-                  label={t('email_notifications') || "Email xabarlar"}
-                  hasToggle
-                  isToggled={emailEnabled}
-                  onClick={() => setEmailEnabled(!emailEnabled)}
                   chevron={false}
                />
             </div>
@@ -321,34 +276,28 @@ function MobileProfileContent() {
           {/* Section: Support */}
           <div>
             <SectionHeader title={t('support') || "Yordam"} />
-            <div className="border-y border-neutral-200 dark:border-neutral-800">
+            <div className="bg-white dark:bg-neutral-900 rounded-xl overflow-hidden shadow-sm border border-neutral-200 dark:border-neutral-800">
                <MenuItem 
                   isLink
                   href="/mobile/contact"
-                  icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>}
+                  icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>}
                   label={t('contact_admin') || "Admin bilan bog'lanish"}
                />
                <MenuItem 
                   isLink
                   href="/mobile/about"
-                  icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>}
+                  icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>}
                   label={t('about_us') || "Dastur haqida"}
                />
-            </div>
-          </div>
-
-          {/* Section: Account */}
-          <div>
-             <div className="border-y border-neutral-200 dark:border-neutral-800 mt-4">
                <MenuItem 
                   isDestructive
-                  icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>}
+                  icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>}
                   label={t('logout') || "Chiqish"}
                   onClick={() => signOut({ callbackUrl: "/login" })}
                   chevron={false}
                />
-             </div>
-             <p className="text-center text-neutral-400 text-[10px] mt-4 uppercase tracking-widest font-bold">QaytarMe v1.5</p>
+            </div>
+            <p className="text-center text-neutral-400 text-[10px] mt-6 uppercase tracking-widest font-bold opacity-50">QaytarMe v2.0</p>
           </div>
 
        </div>

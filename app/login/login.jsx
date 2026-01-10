@@ -5,8 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
-
-// ... (existing imports and constants) ...
+import { useTelegram } from "@/app/hooks/useTelegram";
 
 // --- BRAND COLORS (LIGHT & FRESH) ---
 // Mint:      #A9D3C9 (Primary Accent)
@@ -90,12 +89,28 @@ const foundItems = [
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { tg } = useTelegram();
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const [email, setEmail] = useState("");
   const [focusedField, setFocusedField] = useState(null);
+  
+  // Default to FALSE (hidden) to prevent flashing/errors in Telegram
+  const [isBrowser, setIsBrowser] = useState(false);
+
+  useEffect(() => {
+    // Strict check: Only show if window exists AND NOT inside Telegram
+    if (typeof window !== 'undefined') {
+       const userAgent = navigator.userAgent.toLowerCase();
+       const isTg = !!tg?.initData || userAgent.includes("telegram") || userAgent.includes("wv"); // wv = WebView
+       
+       if (!isTg) {
+          setIsBrowser(true);
+       }
+    }
+  }, [tg]);
 
   useEffect(() => {
     const verified = searchParams.get("verified");
@@ -194,39 +209,39 @@ export default function LoginPage() {
          </motion.div>
       </div>
 
-      {/* Right Side - Login Form */}
-      <div className="w-full lg:w-[600px] bg-white/50 backdrop-blur-xl border-l border-[#A9D3C9]/20 flex flex-col justify-center px-6 py-8 sm:p-16 relative overflow-y-auto no-scrollbar shadow-[-20px_0_40px_rgb(0,0,0,0.02)]">
+      {/* Right Side - Login Form - OPTIMIZED FOR MOBILE */}
+      <div className="w-full lg:w-[600px] bg-white/50 backdrop-blur-xl border-l border-[#A9D3C9]/20 flex flex-col justify-center px-5 py-6 sm:p-16 relative overflow-y-auto no-scrollbar shadow-[-20px_0_40px_rgb(0,0,0,0.02)]">
          <div className="max-w-[420px] mx-auto w-full">
             
-            {/* Mobile Logo */}
-            <div className="lg:hidden mb-10 flex flex-col items-center">
-               <div className="w-16 h-16 bg-[#2E2D2B] rounded-2xl flex items-center justify-center text-[#F7F6E2] shadow-xl shadow-[#2E2D2B]/10 mb-4">
-                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-               </div>
-               <h2 className="text-2xl font-black text-[#2E2D2B]">QaytarMe</h2>
-            </div>
 
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-               <h2 className="text-lg font-bold text-[#A9D3C9] uppercase tracking-widest mb-2">Xush Kelibsiz</h2>
-               <h1 className="text-4xl font-black text-[#2E2D2B] mb-2 tracking-tight">Tizimga Kiring</h1>
-               <p className="text-[#2E2D2B]/50 font-medium mb-10">Davom etish uchun ma'lumotlaringizni kiriting.</p>
+
+            {/* Header Text */}
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="text-center lg:text-left">
+               <h2 className="text-xs lg:text-lg font-bold text-[#A9D3C9] uppercase tracking-widest mb-1 lg:mb-2">Xush Kelibsiz</h2>
+               <h1 className="text-2xl lg:text-4xl font-black text-[#2E2D2B] mb-2 tracking-tight">Tizimga Kiring</h1>
+               <p className="text-[#2E2D2B]/50 font-medium mb-8 text-xs lg:text-base">Davom etish uchun ma'lumotlaringizni kiriting.</p>
             </motion.div>
 
-            <button 
-               onClick={() => signIn("google", { callbackUrl: "/" })}
-               className="w-full h-14 bg-white border border-[#2E2D2B]/5 rounded-xl flex items-center justify-center gap-3 text-[#2E2D2B] font-bold hover:bg-[#F7F6E2] hover:border-[#A9D3C9] transition-all active:scale-[0.98] mb-8 group shadow-sm hover:shadow-md"
-            >
-               <div className="group-hover:scale-110 transition-transform">{Icons.google}</div>
-               <span>Google orqali kirish</span>
-            </button>
+            {/* Google Login */}
+            {isBrowser && (
+                <>
+                <button 
+                onClick={() => signIn("google", { callbackUrl: "/" })}
+                className="w-full h-12 lg:h-14 bg-white border border-[#2E2D2B]/10 lg:border-[#2E2D2B]/5 rounded-xl flex items-center justify-center gap-3 text-[#2E2D2B] font-bold hover:bg-[#F7F6E2] active:scale-[0.98] mb-6 lg:mb-8 group shadow-sm text-sm lg:text-base"
+                >
+                <div className="group-hover:scale-110 transition-transform">{Icons.google}</div>
+                <span>Google orqali kirish</span>
+                </button>
 
-            <div className="flex items-center gap-4 mb-8">
-               <div className="h-px bg-[#2E2D2B]/10 flex-1" />
-               <span className="text-[11px] font-bold text-[#2E2D2B]/40 uppercase tracking-widest">Yoki email orqali</span>
-               <div className="h-px bg-[#2E2D2B]/10 flex-1" />
-            </div>
+                <div className="flex items-center gap-4 mb-6 lg:mb-8">
+                <div className="h-px bg-[#2E2D2B]/10 flex-1" />
+                <span className="text-[9px] lg:text-[11px] font-bold text-[#2E2D2B]/40 uppercase tracking-widest">Yoki email orqali</span>
+                <div className="h-px bg-[#2E2D2B]/10 flex-1" />
+                </div>
+                </>
+            )}
 
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form onSubmit={handleSubmit} className="space-y-4 lg:space-y-5">
                <AnimatePresence>
                   {error && (
                      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="bg-red-50 text-red-500 text-xs font-bold px-4 py-3 rounded-xl border border-red-100 flex items-center gap-2 mb-4">
@@ -242,9 +257,9 @@ export default function LoginPage() {
                   )}
                </AnimatePresence>
 
-               <div className="space-y-2">
-                  <label className="text-xs font-bold text-[#2E2D2B]/60 ml-1 uppercase tracking-wide">Email</label>
-                  <div className={`h-14 bg-white border rounded-xl flex items-center px-4 transition-all duration-300 ${focusedField === 'email' ? 'border-[#A9D3C9] ring-4 ring-[#A9D3C9]/10' : 'border-[#2E2D2B]/10 hover:border-[#2E2D2B]/30'}`}>
+               <div className="space-y-1 lg:space-y-2">
+                  <label className="hidden lg:block text-xs font-bold text-[#2E2D2B]/60 ml-1 uppercase tracking-wide">Email</label>
+                  <div className={`h-12 lg:h-14 bg-[#F2F2F2] lg:bg-white border lg:border border-transparent lg:border-[#2E2D2B]/10 rounded-xl flex items-center px-4 transition-all duration-300 ${focusedField === 'email' ? 'bg-white border-[#A9D3C9] ring-2 ring-[#A9D3C9]/20' : ''}`}>
                      <svg className={`w-5 h-5 mr-3 transition-colors ${focusedField === 'email' ? 'text-[#81B9AC]' : 'text-[#2E2D2B]/30'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                      <input 
                         name="email" 
@@ -253,26 +268,26 @@ export default function LoginPage() {
                         onChange={e => setEmail(e.target.value)}
                         onFocus={() => setFocusedField('email')}
                         onBlur={() => setFocusedField(null)}
-                        placeholder="example@gmail.com"
-                        className="flex-1 bg-transparent border-none outline-none text-sm font-bold text-[#2E2D2B] placeholder:text-[#2E2D2B]/20 h-full"
+                        placeholder="Email manzilingiz"
+                        className="flex-1 bg-transparent border-none outline-none text-sm font-bold text-[#2E2D2B] placeholder:text-[#2E2D2B]/30 h-full"
                      />
                   </div>
                </div>
 
-               <div className="space-y-2">
+               <div className="space-y-1 lg:space-y-2">
                   <div className="flex justify-between items-center ml-1">
-                     <label className="text-xs font-bold text-[#2E2D2B]/60 uppercase tracking-wide">Parol</label>
-                     <Link href="/forgot-password" className="text-xs font-bold text-[#81B9AC] hover:text-[#2E2D2B] transition-colors">Unutdingizmi?</Link>
+                     <label className="hidden lg:block text-xs font-bold text-[#2E2D2B]/60 uppercase tracking-wide">Parol</label>
+                     <Link href="/forgot-password" className="text-[10px] lg:text-xs font-bold text-[#81B9AC] hover:text-[#2E2D2B] transition-colors ml-auto lg:ml-0">Parolni unutdingizmi?</Link>
                   </div>
-                  <div className={`h-14 bg-white border rounded-xl flex items-center px-4 transition-all duration-300 ${focusedField === 'password' ? 'border-[#A9D3C9] ring-4 ring-[#A9D3C9]/10' : 'border-[#2E2D2B]/10 hover:border-[#2E2D2B]/30'}`}>
+                  <div className={`h-12 lg:h-14 bg-[#F2F2F2] lg:bg-white border lg:border border-transparent lg:border-[#2E2D2B]/10 rounded-xl flex items-center px-4 transition-all duration-300 ${focusedField === 'password' ? 'bg-white border-[#A9D3C9] ring-2 ring-[#A9D3C9]/20' : ''}`}>
                      <svg className={`w-5 h-5 mr-3 transition-colors ${focusedField === 'password' ? 'text-[#81B9AC]' : 'text-[#2E2D2B]/30'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                      <input 
                         name="password" 
                         type={showPassword ? "text" : "password"} 
                         onFocus={() => setFocusedField('password')}
                         onBlur={() => setFocusedField(null)}
-                        placeholder="••••••••"
-                        className="flex-1 bg-transparent border-none outline-none text-sm font-bold text-[#2E2D2B] placeholder:text-[#2E2D2B]/20 h-full"
+                        placeholder="Parolingiz"
+                        className="flex-1 bg-transparent border-none outline-none text-sm font-bold text-[#2E2D2B] placeholder:text-[#2E2D2B]/30 h-full"
                      />
                      <button type="button" onClick={() => setShowPassword(!showPassword)} className="p-2 text-[#2E2D2B]/30 hover:text-[#2E2D2B] transition-colors">
                         {showPassword ? Icons.eyeOff : Icons.eye}
@@ -283,19 +298,19 @@ export default function LoginPage() {
                <button 
                   type="submit" 
                   disabled={loading}
-                  className="w-full h-14 bg-[#2E2D2B] text-[#F7F6E2] font-black uppercase tracking-widest rounded-xl hover:bg-[#81B9AC] hover:text-white hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-70 disabled:scale-100 flex items-center justify-center gap-2 mt-4 shadow-xl shadow-[#2E2D2B]/10 hover:shadow-2xl hover:shadow-[#81B9AC]/30"
+                  className="w-full h-12 lg:h-14 bg-[#2E2D2B] text-[#F7F6E2] font-black uppercase tracking-widest rounded-xl hover:bg-[#81B9AC] hover:text-white hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-70 disabled:scale-100 flex items-center justify-center gap-2 mt-4 shadow-xl shadow-[#2E2D2B]/10 hover:shadow-2xl hover:shadow-[#81B9AC]/30 text-xs lg:text-sm"
                >
                   {loading && <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />}
                   {loading ? "Kirilmoqda..." : "Kirish"}
                </button>
             </form>
 
-            <p className="mt-10 text-center text-sm font-bold text-[#2E2D2B]/40">
+            <p className="mt-8 lg:mt-10 text-center text-sm font-bold text-[#2E2D2B]/40">
                Hisobingiz yo'qmi? <Link href="/register" className="text-[#2E2D2B] hover:text-[#81B9AC] underline decoration-[#81B9AC] decoration-2 underline-offset-4 transition-colors">Ro'yxatdan o'ting</Link>
             </p>
          </div>
          
-         <div className="absolute bottom-8 left-0 w-full text-center">
+         <div className="absolute bottom-6 lg:bottom-8 left-0 w-full text-center">
              <p className="text-[10px] text-[#2E2D2B]/30 font-mono">© 2024 QaytarMe Inc.</p>
          </div>
       </div>

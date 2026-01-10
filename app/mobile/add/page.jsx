@@ -232,18 +232,19 @@ export default function MobileAddItemPage() {
       
       {/* Top Header & Progress */}
       <div className="sticky top-0 z-40 bg-white/95 dark:bg-black/95 backdrop-blur-md border-b border-neutral-100 dark:border-white/5">
-         <div className="px-4 h-14 flex items-center justify-between">
-            <button onClick={handleBack} className="p-2 -ml-2 text-neutral-500 active:text-neutral-900 dark:active:text-white">
+         <div className="px-4 h-12 flex items-center justify-between">
+            <button onClick={handleBack} className="w-8 h-8 flex items-center justify-center -ml-2 text-neutral-500 active:text-neutral-900 dark:active:text-white">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
             </button>
-            <span className="font-bold text-sm text-neutral-900 dark:text-white">{t("add_title")}</span>
+            <span className="font-bold text-sm text-neutral-900 dark:text-white line-clamp-1">{STEPS[currentStep-1].title}</span>
             <span className="text-xs font-bold text-neutral-400">{currentStep}/5</span>
          </div>
-         {/* Progress Bar */}
-         <div className="fl-full h-1 bg-neutral-100 dark:bg-neutral-800">
-            <div 
-               className="h-full bg-mint transition-all duration-300 ease-out"
-               style={{ width: `${(currentStep / 5) * 100}%` }}
+         <div className="w-full h-0.5 bg-neutral-100 dark:bg-neutral-800">
+            <motion.div 
+               initial={{ width: 0 }}
+               animate={{ width: `${(currentStep / 5) * 100}%` }}
+               transition={{ duration: 0.3 }}
+               className="h-full bg-neutral-900 dark:bg-white"
             />
          </div>
       </div>
@@ -261,88 +262,89 @@ export default function MobileAddItemPage() {
               
               {/* STEP 1: Type Selection */}
               {currentStep === 1 && (
-                <div className="flex flex-col gap-4 mt-8">
-                  <h2 className="text-2xl font-black text-neutral-900 dark:text-white">{t("add_step1_header")}</h2>
-                  <p className="text-neutral-500 text-sm mb-4">{t("add_step1_sub")}</p>
+                <div className="flex flex-col gap-3 mt-2">
+                  <div className="px-1 mb-2">
+                      <h2 className="text-lg font-bold text-neutral-900 dark:text-white">E'lon turi</h2>
+                      <p className="text-neutral-500 text-xs">Mavjud variantlardan birini tanlang</p>
+                  </div>
                   
-                  <button
-                    onClick={() => setFormData({ ...formData, type: 'lost' })}
-                    className={`relative p-6 rounded-3xl border-2 transition-all active:scale-95 text-left ${
-                      formData.type === 'lost' 
-                        ? 'border-red-500 bg-red-50 dark:bg-red-900/10' 
-                        : 'border-neutral-100 dark:border-white/5 bg-white dark:bg-neutral-900'
-                    }`}
-                  >
-                    <div className="flex items-center gap-4">
-                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl ${
-                            formData.type === 'lost' ? 'bg-red-500 text-white' : 'bg-red-100 text-red-500 dark:bg-red-900/30'
-                        }`}>💔</div>
-                        <div>
-                            <h3 className="font-bold text-lg text-neutral-900 dark:text-white">{t("add_lost")}</h3>
-                            <p className="text-xs text-neutral-500">{t("add_lost_desc")}</p>
+                  <div className="space-y-2">
+                      <button
+                        onClick={() => setFormData({ ...formData, type: 'lost' })}
+                        className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all active:scale-[0.98] ${
+                          formData.type === 'lost' 
+                            ? 'bg-neutral-900 text-white border-neutral-900 dark:bg-white dark:text-black' 
+                            : 'bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white border-neutral-200 dark:border-white/10'
+                        }`}
+                      >
+                        <div className="w-10 h-10 rounded-full bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center text-xl shrink-0">💔</div>
+                        <div className="text-left flex-1">
+                            <h3 className="font-bold text-sm">Yo'qotdim</h3>
+                            <p className="text-[10px] text-neutral-500 font-medium">Shaxsiy buyum yo'qolganda</p>
                         </div>
-                    </div>
-                  </button>
+                        {formData.type === 'lost' && <svg className="w-5 h-5 text-mint" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>}
+                      </button>
 
-                  <button
-                    onClick={() => setFormData({ ...formData, type: 'found' })}
-                    className={`relative p-6 rounded-3xl border-2 transition-all active:scale-95 text-left ${
-                      formData.type === 'found' 
-                        ? 'border-mint bg-mint/10' 
-                        : 'border-neutral-100 dark:border-white/5 bg-white dark:bg-neutral-900'
-                    }`}
-                  >
-                    <div className="flex items-center gap-4">
-                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl ${
-                            formData.type === 'found' ? 'bg-mint text-neutral-900' : 'bg-[#A9D3C9]/30 text-[#2E2D2B] dark:text-white'
-                        }`}>🎁</div>
-                        <div>
-                            <h3 className="font-bold text-lg text-neutral-900 dark:text-white">{t("add_found")}</h3>
-                            <p className="text-xs text-neutral-500">{t("add_found_desc")}</p>
+                      <button
+                        onClick={() => setFormData({ ...formData, type: 'found' })}
+                        className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all active:scale-[0.98] ${
+                          formData.type === 'found' 
+                            ? 'bg-neutral-900 text-white border-neutral-900 dark:bg-white dark:text-black' 
+                            : 'bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white border-neutral-200 dark:border-white/10'
+                        }`}
+                      >
+                        <div className="w-10 h-10 rounded-full bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center text-xl shrink-0">🎁</div>
+                        <div className="text-left flex-1">
+                            <h3 className="font-bold text-sm">Topib oldim</h3>
+                            <p className="text-[10px] text-neutral-500 font-medium">Birovning buyumi topilganda</p>
                         </div>
-                    </div>
-                  </button>
+                        {formData.type === 'found' && <svg className="w-5 h-5 text-mint" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>}
+                      </button>
+                  </div>
                 </div>
               )}
 
               {/* STEP 2: Category & Image */}
               {currentStep === 2 && (
-                <div className="flex flex-col gap-6">
-                  {/* Image Upload */}
-                  <div className="relative aspect-square w-full rounded-3xl bg-neutral-100 dark:bg-neutral-900 overflow-hidden border-2 border-dashed border-neutral-200 dark:border-neutral-800 flex flex-col items-center justify-center group">
-                      <input 
-                        type="file" 
-                        accept="image/*"
-                        onChange={handleFileChange}
-                        className="absolute inset-0 w-full h-full opacity-0 z-10" 
-                      />
-                      {formData.imagePreview ? (
-                         <img src={formData.imagePreview} className="w-full h-full object-cover" />
-                      ) : (
-                         <div className="text-center p-4">
-                            <div className="text-4xl mb-2">📸</div>
-                            <p className="font-bold text-sm text-neutral-500">{t("add_upload_title")}</p>
-                            <span className="text-xs text-mint font-bold uppercase mt-1 inline-block">{t("add_upload_click")}</span>
-                         </div>
-                      )}
+                <div className="flex flex-col gap-4">
+                  {/* Compact Image Upload */}
+                  <div className="flex items-center gap-4">
+                      <div className="relative w-24 h-24 shrink-0 rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-dashed border-neutral-300 dark:border-neutral-700 flex items-center justify-center overflow-hidden">
+                          <input 
+                            type="file" 
+                            accept="image/*"
+                            onChange={handleFileChange}
+                            className="absolute inset-0 w-full h-full opacity-0 z-10 cursor-pointer" 
+                          />
+                          {formData.imagePreview ? (
+                             <img src={formData.imagePreview} className="w-full h-full object-cover" />
+                          ) : (
+                             <span className="text-2xl">📷</span>
+                          )}
+                      </div>
+                      <div>
+                          <h3 className="font-bold text-sm text-neutral-900 dark:text-white">Rasm yuklash</h3>
+                          <p className="text-xs text-neutral-500 mt-1">Sifatli rasm yuklang</p>
+                          <span className="text-[10px] font-bold text-mint uppercase mt-1 inline-block">Tanlash</span>
+                      </div>
                   </div>
 
-                  {/* Categories Grid */}
+                  {/* Categories Grid (Small) */}
                   <div>
-                    <h3 className="font-bold text-neutral-900 dark:text-white mb-3 text-sm uppercase tracking-wider">{t("add_cat_title")}</h3>
-                    <div className="grid grid-cols-3 gap-2">
+                    <h3 className="font-bold text-sm mb-2 text-neutral-900 dark:text-white">Kategoriya</h3>
+                    <div className="grid grid-cols-4 gap-2">
                        {CATEGORIES.map(cat => (
                          <button
                            key={cat.id}
                            onClick={() => setFormData({ ...formData, category: cat.id })}
-                           className={`p-2 rounded-2xl flex flex-col items-center gap-1 transition-all border ${
+                           className={`p-2 rounded-xl flex flex-col items-center justify-center gap-1 transition-all border aspect-square ${
                               formData.category === cat.id
                                 ? 'bg-neutral-900 text-white border-neutral-900 dark:bg-white dark:text-black'
-                                : 'bg-white dark:bg-neutral-900 text-neutral-500 border-neutral-100 dark:border-white/5'
+                                : 'bg-white dark:bg-neutral-900 text-neutral-500 border-neutral-200 dark:border-white/10'
                            }`}
                          >
-                            <span className="text-2xl">{cat.icon}</span>
-                            <span className="text-[9px] font-bold text-center leading-tight">{t(`cat_${cat.id}`)}</span>
+                            <span className="text-lg">{cat.icon}</span>
+                            <span className="text-[9px] font-bold text-center truncate w-full">{t(`cat_${cat.id}`)}</span>
                          </button>
                        ))}
                     </div>
@@ -352,69 +354,69 @@ export default function MobileAddItemPage() {
 
               {/* STEP 3: Details */}
               {currentStep === 3 && (
-                <div className="flex flex-col gap-4">
-                    <div>
-                         <label className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5 block ml-1">{t("add_label_title")}</label>
-                         <input 
-                            type="text" 
-                            value={formData.title}
-                            onChange={(e) => setFormData({...formData, title: e.target.value})}
-                            placeholder={t("add_placeholder_title")}
-                            className="w-full h-14 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl px-5 font-bold text-neutral-900 dark:text-white outline-none focus:border-mint transition-colors placeholder:text-neutral-400"
-                         />
-                    </div>
-                    
-                    <div>
-                         <label className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5 block ml-1">{t("add_label_desc")}</label>
-                         <textarea 
-                            value={formData.description}
-                            onChange={(e) => setFormData({...formData, description: e.target.value})}
-                            placeholder={t("add_placeholder_desc")}
-                            className="w-full h-32 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-5 font-medium text-neutral-900 dark:text-white outline-none focus:border-mint transition-colors placeholder:text-neutral-400 resize-none"
-                         />
-                    </div>
-
-                    <div>
-                        <label className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5 block ml-1">{t("add_label_date")}</label>
-                        <input 
-                            type="date"
-                            value={formData.date}
-                            onChange={(e) => setFormData({...formData, date: e.target.value})} 
-                            className="w-full h-14 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl px-4 font-bold text-neutral-900 dark:text-white outline-none focus:border-mint"
-                        />
+                <div className="flex flex-col gap-3">
+                    <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden">
+                        <div className="border-b border-neutral-100 dark:border-white/5 px-4 py-2">
+                             <label className="text-[10px] font-bold uppercase text-neutral-400 block">{t("add_label_title")}</label>
+                             <input 
+                                type="text" 
+                                value={formData.title}
+                                onChange={(e) => setFormData({...formData, title: e.target.value})}
+                                placeholder={t("add_placeholder_title")}
+                                className="w-full h-8 bg-transparent font-semibold text-sm text-neutral-900 dark:text-white outline-none placeholder:text-neutral-300"
+                             />
+                        </div>
+                        <div className="px-4 py-2">
+                             <label className="text-[10px] font-bold uppercase text-neutral-400 block">{t("add_label_desc")}</label>
+                             <textarea 
+                                value={formData.description}
+                                onChange={(e) => setFormData({...formData, description: e.target.value})}
+                                placeholder={t("add_placeholder_desc")}
+                                className="w-full h-20 bg-transparent font-medium text-sm text-neutral-900 dark:text-white outline-none placeholder:text-neutral-300 resize-none py-1"
+                             />
+                        </div>
                     </div>
 
-                    <div>
-                         <label className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5 block ml-1">{t("add_label_phone")}</label>
-                         <input 
-                            type="tel" 
-                            value={formData.contactPhone}
-                            onChange={(e) => setFormData({...formData, contactPhone: e.target.value})}
-                            placeholder="+998 90 123 45 67"
-                            className="w-full h-14 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl px-4 font-bold text-neutral-900 dark:text-white outline-none focus:border-mint"
-                         />
-                    </div>
-
-                    <div>
-                         <label className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5 block ml-1">Telegram</label>
-                         <input 
-                            type="text" 
-                            value={formData.telegram}
-                            onChange={(e) => setFormData({...formData, telegram: e.target.value})}
-                            placeholder="@username"
-                            className="w-full h-14 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl px-4 font-bold text-neutral-900 dark:text-white outline-none focus:border-mint"
-                         />
+                    <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden">
+                        <div className="border-b border-neutral-100 dark:border-white/5 px-4 py-2 flex items-center justify-between">
+                             <label className="text-[10px] font-bold uppercase text-neutral-400">{t("add_label_date")}</label>
+                             <input 
+                                type="date"
+                                value={formData.date}
+                                onChange={(e) => setFormData({...formData, date: e.target.value})} 
+                                className="h-8 bg-transparent font-semibold text-sm text-neutral-900 dark:text-white outline-none text-right"
+                             />
+                        </div>
+                        <div className="border-b border-neutral-100 dark:border-white/5 px-4 py-2">
+                             <label className="text-[10px] font-bold uppercase text-neutral-400 block">{t("add_label_phone")}</label>
+                             <input 
+                                type="tel" 
+                                value={formData.contactPhone}
+                                onChange={(e) => setFormData({...formData, contactPhone: e.target.value})}
+                                placeholder="+998 90 123 45 67"
+                                className="w-full h-8 bg-transparent font-semibold text-sm text-neutral-900 dark:text-white outline-none placeholder:text-neutral-300"
+                             />
+                        </div>
+                        <div className="px-4 py-2">
+                             <label className="text-[10px] font-bold uppercase text-neutral-400 block">Telegram</label>
+                             <input 
+                                type="text" 
+                                value={formData.telegram}
+                                onChange={(e) => setFormData({...formData, telegram: e.target.value})}
+                                placeholder="@username"
+                                className="w-full h-8 bg-transparent font-semibold text-sm text-neutral-900 dark:text-white outline-none placeholder:text-neutral-300"
+                             />
+                        </div>
                     </div>
                 </div>
               )}
 
               {/* STEP 4: Location */}
               {currentStep === 4 && (
-                <div className="flex flex-col h-[70vh] -mx-4">
-                   <div className="relative flex-1 bg-neutral-100 dark:bg-neutral-900">
+                <div className="absolute inset-x-0 bottom-0 top-32 z-0 bg-neutral-100 dark:bg-neutral-900">
                        {isLoaded ? (
                           <GoogleMap
-                             mapContainerStyle={mapContainerStyle}
+                             mapContainerStyle={{ width: '100%', height: '100%' }}
                              center={formData.location}
                              zoom={15}
                              onClick={handleMapClick}
@@ -446,11 +448,10 @@ export default function MobileAddItemPage() {
                           <div className="flex items-center justify-center h-full">{t('add_map_loading')}</div>
                        )}
 
-                       <div className="absolute bottom-6 left-4 right-4 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md p-4 rounded-2xl shadow-xl z-10 border border-neutral-100 dark:border-white/5">
-                           <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-1">{t('add_review_location_label')}</p>
-                           <p className="text-sm font-black text-neutral-900 dark:text-white leading-tight">{formData.address}</p>
+                       <div className="absolute bottom-24 left-4 right-4 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md p-3 rounded-xl shadow-xl z-10 border border-neutral-100 dark:border-white/5">
+                           <p className="text-[9px] font-bold text-neutral-400 uppercase tracking-wider mb-0.5">{t('add_review_location_label')}</p>
+                           <p className="text-xs font-black text-neutral-900 dark:text-white leading-tight line-clamp-2">{formData.address}</p>
                        </div>
-                   </div>
                 </div>
               )}
 
@@ -496,20 +497,20 @@ export default function MobileAddItemPage() {
             </motion.div>
           </AnimatePresence>
 
-          {/* Floating Action Button */}
+          {/* Floating Action Button (Compact) */}
           <div className="fixed bottom-24 left-4 right-4 z-50">
              {error && (
-                <div className="mb-4 bg-red-500 text-white p-3 rounded-xl text-xs font-bold shadow-lg animate-bounce">
+                <div className="mb-2 bg-red-500 text-white p-2 rounded-lg text-xs font-bold shadow-lg animate-bounce text-center">
                     {error}
                 </div>
              )}
              
              <button
                onClick={currentStep === STEPS.length ? handleSubmit : handleNext}
-               className={`w-full py-4 rounded-2xl font-black text-center shadow-2xl active:scale-95 transition-transform flex items-center justify-center gap-2 ${
+               className={`w-full h-12 rounded-xl font-bold text-sm text-center shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2 ${
                   currentStep === STEPS.length 
-                  ? 'bg-mint text-neutral-900'
-                  : 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900'
+                  ? 'bg-mint text-neutral-900 border border-mint'
+                  : 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 border border-transparent'
                }`}
              >
                 {currentStep === STEPS.length ? (

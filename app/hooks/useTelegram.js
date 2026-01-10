@@ -11,7 +11,7 @@ export function useTelegram() {
             setTg(webApp);
             
             // Expand strictly on mount
-            webApp.expand();
+            // webApp.expand();
             
             // Get user data
             if (webApp.initDataUnsafe && webApp.initDataUnsafe.user) {

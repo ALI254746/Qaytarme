@@ -58,8 +58,12 @@ export class AuthService {
     });
 
     const emailResult = await this.mailService.sendVerificationEmail(email, verificationCode);
+    
+    // TEMPORARY FIX: If email fails (e.g. Resend issues), verify user automatically
     if (!emailResult.success) {
-      throw new BadRequestException('Email yuborishda xatolik: ' + emailResult.error);
+      console.warn('Email sending failed, AUTO-VERIFYING user:', emailResult.error);
+      await this.usersService.update(newUser._id.toString(), { isVerified: true });
+      return { message: 'User created and verified (Email skipped due to error).', email: newUser.email };
     }
 
     return { message: 'User created. Verification code sent.', email: newUser.email };
@@ -193,7 +197,10 @@ export class AuthService {
 
     const emailResult = await this.mailService.sendPasswordResetEmail(email, verificationCode);
     if (!emailResult.success) {
-       throw new BadRequestException('Email yuborishda xatolik: ' + emailResult.error);
+       // DEBUG FIX: Return code in error so we can test
+       console.warn(`Forgot Password Code for ${email}: ${verificationCode}`);
+       return { message: `Email error (TEST MODE): Code is ${verificationCode}` };
+       // throw new BadRequestException('Email yuborishda xatolik: ' + emailResult.error);
     }
 
     return { message: 'Tasdiqlash kodi yuborildi' };

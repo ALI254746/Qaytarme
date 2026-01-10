@@ -7,6 +7,7 @@ import { getApiUrl } from "@/lib/api-config";
 
 import { useSession, signIn } from "next-auth/react";
 import { useTelegram } from "@/app/hooks/useTelegram";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function MobileHomePage() {
   const { t } = useLanguage();
@@ -18,6 +19,7 @@ export default function MobileHomePage() {
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState('all'); // all, lost, found
   const [activeCategory, setActiveCategory] = useState('all');
+  const [showFilters, setShowFilters] = useState(false);
   
   // Pull to Refresh State
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -162,108 +164,170 @@ export default function MobileHomePage() {
           </div>
        )}
 
-       {/* --- Combined Filters & Categories (Sticky) --- */}
-       <div className="sticky top-16 z-30 bg-neutral-50/95 dark:bg-black/95 backdrop-blur-sm py-3 -mx-4 px-4 border-b border-neutral-200/50 dark:border-white/5 no-scrollbar overflow-x-auto flex items-center gap-3">
-          
-          {/* Status Filters */}
-          <div className="flex bg-white dark:bg-neutral-900 rounded-xl p-1 border border-neutral-200 dark:border-neutral-800 shrink-0">
-             {filters.map(f => (
-                <button
-                   key={f.id}
-                   onClick={() => setActiveFilter(f.id)}
-                   className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
-                       activeFilter === f.id 
-                       ? 'bg-neutral-900 text-white dark:bg-white dark:text-black shadow-sm' 
-                       : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
-                   }`}
-                >
-                    {f.label}
-                </button>
-             ))}
-          </div>
-
-          <div className="w-px h-6 bg-neutral-200 dark:bg-neutral-800 shrink-0" />
-
-          {/* Categories */}
-          {CATEGORIES.map(cat => (
-             <button
-                key={cat.id}
-                onClick={() => setActiveCategory(activeCategory === cat.id ? 'all' : cat.id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border transition-all shrink-0 ${
-                    activeCategory === cat.id
-                    ? 'bg-mint text-neutral-900 border-mint shadow-sm'
-                    : 'bg-white dark:bg-neutral-900 text-neutral-500 border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700'
-                 }`}
-             >
-                 <span className="text-base">{cat.icon}</span>
-                 <span className="text-[10px] font-bold uppercase tracking-wide">
-                    {t(`cat_${cat.id}`)}
-                 </span>
-             </button>
-          ))}
+       {/* --- Clean Content Header --- */}
+       <div className="pt-4 px-4 flex items-center justify-between mb-4">
+           <h1 className="text-2xl font-black text-neutral-900 dark:text-white tracking-tight">
+               {activeFilter === 'all' && activeCategory === 'all' ? (t('mobile_feed_title') !== 'mobile_feed_title' ? t('mobile_feed_title') : "So'nggi e'lonlar") : "Qidiruv natijalari"}
+           </h1>
+           
+           <button 
+               onClick={() => setShowFilters(true)}
+               className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all ${
+                   activeFilter !== 'all' || activeCategory !== 'all'
+                   ? 'bg-neutral-900 dark:bg-white text-white dark:text-black shadow-lg shadow-neutral-900/20'
+                   : 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white border border-neutral-100 dark:border-white/10'
+               }`}
+           >
+               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
+               {(activeFilter !== 'all' || activeCategory !== 'all') && (
+                   <span className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full border-2 border-white dark:border-black"/>
+               )}
+           </button>
        </div>
 
-       {/* --- Grid Feed --- */}
+       {/* --- Filter Modal (Bottom Sheet Style) --- */}
+       <AnimatePresence>
+           {showFilters && (
+               <>
+                   <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" onClick={() => setShowFilters(false)} />
+                   <motion.div 
+                       initial={{ y: "100%" }}
+                       animate={{ y: 0 }}
+                       exit={{ y: "100%" }}
+                       transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                       className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-neutral-900 rounded-t-3xl p-6 shadow-2xl max-h-[85vh] overflow-y-auto"
+                   >
+                       <div className="w-12 h-1.5 bg-neutral-200 dark:bg-neutral-800 rounded-full mx-auto mb-6" />
+                       
+                       <div className="flex items-center justify-between mb-6">
+                           <h2 className="text-xl font-black text-neutral-900 dark:text-white">{t('mobile_filters') || "Filtrlash"}</h2>
+                           {(activeFilter !== 'all' || activeCategory !== 'all') && (
+                               <button 
+                                   onClick={() => { setActiveFilter('all'); setActiveCategory('all'); setShowFilters(false); }}
+                                   className="text-xs font-bold text-red-500 hover:text-red-600"
+                               >
+                                   Tozalash
+                               </button>
+                           )}
+                       </div>
+
+                       <div className="space-y-8">
+                           {/* Status */}
+                           <div className="space-y-3">
+                               <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Holati</label>
+                               <div className="flex p-1 bg-neutral-100 dark:bg-neutral-800 rounded-xl">
+                                   {filters.map(f => (
+                                       <button
+                                           key={f.id}
+                                           onClick={() => setActiveFilter(f.id)}
+                                           className={`flex-1 py-3 rounded-lg text-xs font-bold transition-all ${
+                                               activeFilter === f.id
+                                               ? 'bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm'
+                                               : 'text-neutral-500'
+                                           }`}
+                                       >
+                                           {f.label}
+                                       </button>
+                                   ))}
+                               </div>
+                           </div>
+
+                           {/* Categories */}
+                           <div className="space-y-3">
+                               <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Kategoriya</label>
+                               <div className="grid grid-cols-4 gap-3">
+                                   {CATEGORIES.map(cat => (
+                                       <button
+                                           key={cat.id}
+                                           onClick={() => setActiveCategory(activeCategory === cat.id ? 'all' : cat.id)}
+                                           className={`flex flex-col items-center gap-2 p-3 rounded-2xl border transition-all ${
+                                               activeCategory === cat.id
+                                               ? 'bg-neutral-900 dark:bg-white text-white dark:text-black border-transparent shadow-lg scale-105'
+                                               : 'bg-white dark:bg-neutral-900 border-neutral-100 dark:border-neutral-800 text-neutral-500'
+                                           }`}
+                                       >
+                                           <span className="text-2xl">{cat.icon}</span>
+                                           <span className="text-[9px] font-bold uppercase truncate w-full text-center">{t(`cat_${cat.id}`)}</span>
+                                       </button>
+                                   ))}
+                               </div>
+                           </div>
+
+                           <button 
+                               onClick={() => setShowFilters(false)}
+                               className="w-full py-4 bg-mint text-neutral-900 font-black rounded-xl text-sm shadow-lg shadow-mint/20 active:scale-95 transition-transform"
+                           >
+                               Natijalarni ko'rish
+                           </button>
+                       </div>
+                   </motion.div>
+               </>
+           )}
+       </AnimatePresence>
+
+       {/* --- Grid Feed (Pinterest Style - Clean) --- */}
        {loading && !isRefreshing ? (
-           <div className="grid grid-cols-2 gap-3 min-h-[50vh]">
+           <div className="grid grid-cols-2 gap-4 px-4 pb-24">
                {[1,2,3,4,5,6].map(n => (
-                   <div key={n} className="bg-white dark:bg-neutral-900 rounded-2xl p-2 h-48 animate-pulse">
-                       <div className="w-full h-28 bg-neutral-200 dark:bg-neutral-800 rounded-xl mb-2"/>
-                       <div className="h-3 w-3/4 bg-neutral-200 dark:bg-neutral-800 rounded mb-1"/>
-                       <div className="h-2 w-1/2 bg-neutral-200 dark:bg-neutral-800 rounded"/>
+                   <div key={n} className="space-y-3">
+                       <div className="w-full aspect-[4/5] bg-neutral-100 dark:bg-neutral-800 rounded-2xl animate-pulse"/>
+                       <div className="h-4 w-3/4 bg-neutral-100 dark:bg-neutral-800 rounded animate-pulse"/>
+                       <div className="h-3 w-1/2 bg-neutral-100 dark:bg-neutral-800 rounded animate-pulse"/>
                    </div>
                ))}
            </div>
        ) : items.length > 0 ? (
-           <div className="grid grid-cols-2 gap-3 pb-20">
+           <div className="grid grid-cols-2 gap-4 px-4 pb-24">
                {items.map((item) => (
-                   <Link href={`/mobile/item/${item._id}`} key={item._id} className="group bg-white dark:bg-neutral-900 rounded-2xl p-2 border border-neutral-100 dark:border-white/5 shadow-sm active:scale-95 transition-transform duration-200">
+                   <Link href={`/mobile/item/${item._id}`} key={item._id} className="group block space-y-2 active:scale-95 transition-transform duration-200">
                        
-                       {/* Image Area */}
-                       <div className="relative w-full aspect-square rounded-xl overflow-hidden bg-neutral-100 dark:bg-neutral-800 mb-2">
+                       {/* Image Card */}
+                       <div className="relative w-full aspect-[4/5] rounded-2xl overflow-hidden bg-neutral-100 dark:bg-neutral-800 shadow-sm">
                            {item.image ? (
                                <img 
                                  src={typeof item.image === 'string' ? item.image : item.image.url} 
                                  alt={item.title}
-                                 className="w-full h-full object-cover"
+                                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                                />
                            ) : (
-                               <div className="w-full h-full flex items-center justify-center text-3xl">📦</div>
+                               <div className="w-full h-full flex items-center justify-center text-4xl opacity-30">📦</div>
                            )}
                            
-                           {/* Status Badge */}
-                           <div className={`absolute top-2 left-2 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm ${
-                               item.status === 'lost' 
-                               ? 'bg-red-500 text-white' 
-                               : 'bg-mint text-neutral-900'
-                           }`}>
-                               {item.status === 'lost' ? t('mobile_status_lost') : t('mobile_status_found')}
-                           </div>
+                           {/* Minimal Status Indicator */}
+                           <div className={`absolute top-3 left-3 w-2 h-2 rounded-full ${
+                               item.status === 'lost' ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]' : 'bg-mint shadow-[0_0_10px_rgba(50,255,150,0.5)]'
+                           }`} />
+
+                           {/* Gradient Overlay for Text Visibility */}
+                           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                        </div>
 
-                       {/* Content Area */}
+                       {/* Content */}
                        <div className="px-1">
-                           <h3 className="font-bold text-xs text-neutral-900 dark:text-white line-clamp-1 mb-1">{item.itemType}</h3>
-                           
-                           <div className="flex items-center gap-1 text-[10px] text-neutral-400 mb-1.5">
-                               <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                               <span className="truncate">{item.location}</span>
-                           </div>
-
-                           <div className="flex items-center justify-between mt-auto pt-2 border-t border-neutral-50 dark:border-white/5">
-                               <span className="text-[9px] font-bold text-neutral-300">
-                                   {getRelativeTime(item.createdAt || item.date)}
-                                </span>
-                           </div>
+                           <h3 className="font-bold text-sm text-neutral-900 dark:text-white leading-tight mb-1 line-clamp-2">
+                               {item.itemType}
+                           </h3>
+                           <p className="text-xs text-neutral-400 font-medium line-clamp-1 flex items-center gap-1">
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                              {item.location}
+                           </p>
                        </div>
                    </Link>
                ))}
            </div>
        ) : (
-           <div className="flex flex-col items-center justify-center py-20 text-neutral-400 min-h-[50vh]">
-               <div className="text-4xl mb-2">🍃</div>
-               <p className="text-sm font-medium">{t('mobile_empty_title')}</p>
-               {activeCategory !== 'all' && <button onClick={() => setActiveCategory('all')} className="mt-4 text-mint text-xs font-bold">{t('mobile_empty_reset')}</button>}
+           <div className="flex flex-col items-center justify-center py-32 text-center px-6">
+               <div className="w-20 h-20 bg-neutral-100 dark:bg-neutral-800 rounded-full flex items-center justify-center text-4xl mb-4 grayscale opacity-50">
+                   🍃
+               </div>
+               <h3 className="font-bold text-lg text-neutral-900 dark:text-white mb-2">{t('mobile_empty_title')}</h3>
+               <p className="text-sm text-neutral-500 max-w-[200px] mx-auto mb-6">Hech narsa topilmadi. Filterlarni tekshiring.</p>
+               <button 
+                  onClick={() => { setActiveFilter('all'); setActiveCategory('all'); }} 
+                  className="px-6 py-2 bg-neutral-900 dark:bg-white text-white dark:text-black rounded-xl text-sm font-bold active:scale-95 transition-transform"
+               >
+                   Tozalash
+               </button>
            </div>
        )}
     </div>

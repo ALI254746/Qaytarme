@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { TelegramClient } from 'telegram';
+import { TelegramClient, Api } from 'telegram';
 import { StringSession } from 'telegram/sessions';
 import { NewMessage } from 'telegram/events';
 import { ArizaService } from '../ariza/ariza.service';
@@ -66,11 +66,43 @@ export class TelegramService implements OnModuleInit {
         }
 
         this.logger.log('Telegram Client Connected!');
+        await this.joinChannels(); // Auto-join channels from DB
         this.startListening();
 
     } catch (e) {
         this.logger.error('Failed to connect to Telegram:', e);
     }
+  }
+
+  private async joinChannels() {
+      try {
+          const activeChannels = await this.channelModel.find({ isActive: true });
+          this.logger.log(`Checking membership for ${activeChannels.length} channels...`);
+
+          for (const channel of activeChannels) {
+              if (!channel.username) continue;
+              const username = channel.username.replace('@', '');
+              
+              try {
+                  // Resolve the username to an entity first (safest way)
+                  const entity = await this.client.getEntity(username);
+                  
+                  await this.client.invoke(new Api.channels.JoinChannel({
+                      channel: entity
+                  }));
+                  this.logger.log(`Successfully joined/verified channel: ${username}`);
+              } catch (err) {
+                  // User already participant error or other benign errors can be ignored
+                  if (err.message && err.message.includes('USER_ALREADY_PARTICIPANT')) {
+                       // already joined, good
+                  } else {
+                      this.logger.warn(`Could not join channel ${username}: ${err.message}`);
+                  }
+              }
+          }
+      } catch (e) {
+          this.logger.error('Error in joinChannels', e);
+      }
   }
 
   private startListening() {
@@ -83,29 +115,35 @@ export class TelegramService implements OnModuleInit {
             // For simplicity, we process all messages for now or filter by chatID if we had them.
             // Getting sender info:
             const chat = await message.getChat();
+            
+            // Log everything to see what is happening
             const chatUsername = chat?.username;
-            this.logger.debug(`Incoming message from chat: ${chatUsername} (ID: ${chat?.id})`);
+            const chatTitle = chat?.title;
+            const chatId = chat?.id;
+
+            console.log(`[MSG] From: ${chatTitle} | @${chatUsername} | ID: ${chatId}`);
 
             // Fetch active channels from DB
             const activeChannels = await this.channelModel.find({ isActive: true });
             
-            // COMBINE DB channels with Hardcoded channels to ensure it works
-            const targetUsernames = [
-                'topilmalar_uz', 
-                'topilmalar_toshkent', 
-                'Hojiakbar_test_kanal', // Agar test kanalingiz bo'lsa
-                ...activeChannels.map(c => c.username.replace(/^@/, '')) // Remove @ if present
-            ];
+            // STRICTLY use only channels from Admin Panel (Database)
+            const targetUsernames = activeChannels
+                .map(c => c.username?.replace(/^@/, '')) 
+                .map(u => u?.toLowerCase())
+                .filter(Boolean);
 
-            this.logger.debug(`Target Channels: ${targetUsernames.join(', ')}`);
+            // console.log(`Target Channels: ${targetUsernames.join(', ')}`);
 
-            // Simple filter: Only process if username matches our list
-            if (!chatUsername || !targetUsernames.includes(chatUsername)) {
-                this.logger.warn(`Ignoring message from untracked channel: ${chatUsername}`);
+            // Check match
+            const isMatch = chatUsername && targetUsernames.includes(chatUsername.toLowerCase());
+
+            if (!isMatch) {
+                // Uncomment to see ignored messages noise
+                // console.log(`Ignoring message from: ${chatTitle} (@${chatUsername})`);
                 return;
             }
 
-            this.logger.log(`>> PROCESSING VALID MESSAGE FROM: ${chatUsername}`);
+            this.logger.log(`>> PROCESSING VALID MESSAGE FROM: ${chatTitle} (@${chatUsername})`);
 
             // 1. Download Media FIRST (for Vision AI)
             let buffer: Buffer | null = null;

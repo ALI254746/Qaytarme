@@ -134,26 +134,26 @@ export default function MobileMapPage() {
                 exit={{ y: -20, opacity: 0 }}
                 className="absolute top-4 left-4 right-4 z-[10] space-y-3"
              >
-                {/* Search Input */}
-                <div className="bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md shadow-lg rounded-2xl flex items-center p-3 gap-3 border border-neutral-200 dark:border-white/10">
-                   <svg className="w-5 h-5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                {/* Search Input (Compact) */}
+                <div className="bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md shadow-lg rounded-xl flex items-center p-2 gap-2 border border-neutral-200 dark:border-white/10">
+                   <svg className="w-4 h-4 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                    <input 
                       type="text"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder={t("mobile_search_placeholder")} 
-                      className="flex-1 bg-transparent outline-none font-bold text-sm text-neutral-900 dark:text-white"
+                      className="flex-1 bg-transparent outline-none font-bold text-xs text-neutral-900 dark:text-white"
                    />
                 </div>
 
-                {/* Filter Pills */}
+                {/* Filter Pills (Compact) */}
                 <div className="flex justify-between items-center">
-                    <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
+                    <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
                     {['all', 'lost', 'found'].map(f => (
                         <button
                             key={f}
                             onClick={() => setActiveFilter(f)}
-                            className={`px-4 py-2 rounded-xl text-xs font-bold uppercase shadow-lg transition-transform active:scale-95 ${
+                            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase shadow-md transition-transform active:scale-95 ${
                                 activeFilter === f 
                                 ? 'bg-neutral-900 text-white dark:bg-white dark:text-black' 
                                 : 'bg-white dark:bg-neutral-900 text-neutral-500'
@@ -164,19 +164,19 @@ export default function MobileMapPage() {
                     ))}
                     </div>
                     
-                    {/* Map Type Toggle */}
-                    <div className="flex bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md rounded-xl p-1 shadow-lg border border-neutral-200 dark:border-white/10 ml-2">
+                    {/* Map Type Toggle (Compact) */}
+                    <div className="flex bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md rounded-lg p-1 shadow-md border border-neutral-200 dark:border-white/10 ml-2">
                         <button 
                             onClick={() => setMapType('roadmap')}
-                            className={`p-2 rounded-lg transition-colors ${mapType === 'roadmap' ? 'bg-mint text-neutral-900' : 'text-neutral-400'}`}
+                            className={`p-1.5 rounded transition-colors ${mapType === 'roadmap' ? 'bg-mint text-neutral-900' : 'text-neutral-400'}`}
                         >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
                         </button>
                         <button 
                             onClick={() => setMapType('hybrid')}
-                            className={`p-2 rounded-lg transition-colors ${mapType === 'hybrid' ? 'bg-mint text-neutral-900' : 'text-neutral-400'}`}
+                            className={`p-1.5 rounded transition-colors ${mapType === 'hybrid' ? 'bg-mint text-neutral-900' : 'text-neutral-400'}`}
                         >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                         </button>
                     </div>
                 </div>
@@ -229,7 +229,7 @@ export default function MobileMapPage() {
        )}
 
        {/* --- Bottom Controls & List --- */}
-       <div className="absolute bottom-24 left-0 right-0 z-[10] flex flex-col gap-4 px-4 pointer-events-none">
+       <div className="absolute bottom-16 left-0 right-0 z-[10] flex flex-col gap-4 px-4 pointer-events-none">
           
           {/* Locate Me Button */}
           <div className="flex justify-end pointer-events-auto">
