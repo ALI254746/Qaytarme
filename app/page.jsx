@@ -17,7 +17,16 @@ export default function Page() {
     if (status === "loading") return;
 
     const checkScreenAndRedirect = () => {
-      const isMobile = window.innerWidth < 768;
+      const width = window.innerWidth;
+      const userAgent = navigator.userAgent.toLowerCase();
+      const isMobileDevice = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent);
+      
+      // Only redirect to mobile if it is ACTUALLY a mobile device (User Agent check)
+      // AND the screen width is small (just to be safe).
+      // This allows desktop users to resize windows without being forced to mobile UI.
+      const isMobile = isMobileDevice && width < 768; 
+
+      console.log('Redirect Logic:', { width, userAgent, isMobileDevice, isMobile, session: !!session });
       
       if (session) {
         if (isMobile) {

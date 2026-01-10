@@ -84,17 +84,28 @@ export class TelegramService implements OnModuleInit {
             // Getting sender info:
             const chat = await message.getChat();
             const chatUsername = chat?.username;
+            this.logger.debug(`Incoming message from chat: ${chatUsername} (ID: ${chat?.id})`);
 
             // Fetch active channels from DB
             const activeChannels = await this.channelModel.find({ isActive: true });
-            const targetUsernames = activeChannels.map(c => c.username);
+            
+            // COMBINE DB channels with Hardcoded channels to ensure it works
+            const targetUsernames = [
+                'topilmalar_uz', 
+                'topilmalar_toshkent', 
+                'Hojiakbar_test_kanal', // Agar test kanalingiz bo'lsa
+                ...activeChannels.map(c => c.username)
+            ];
+
+            this.logger.debug(`Target Channels: ${targetUsernames.join(', ')}`);
 
             // Simple filter: Only process if username matches our list
             if (!chatUsername || !targetUsernames.includes(chatUsername)) {
+                this.logger.warn(`Ignoring message from untracked channel: ${chatUsername}`);
                 return;
             }
 
-            this.logger.debug(`Processing message from target channel: ${chatUsername}`);
+            this.logger.log(`>> PROCESSING VALID MESSAGE FROM: ${chatUsername}`);
 
             // 1. Download Media FIRST (for Vision AI)
             let buffer: Buffer | null = null;

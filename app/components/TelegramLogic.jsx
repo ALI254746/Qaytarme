@@ -48,19 +48,22 @@ export default function TelegramLogic() {
     // Platforms: 'android', 'ios', 'tdesktop', 'macos', 'web', 'weba', 'unknown'
     
     if (tg.platform) {
-        const isDesktopTg = ['tdesktop', 'macos', 'web', 'weba'].includes(tg.platform);
+        // Strictly define what is "Mobile"
+        const isMobilePlatform = ['android', 'ios'].includes(tg.platform);
         
-        // If user is on Desktop Telegram but viewing Mobile Page -> Go to Desktop
-        if (isDesktopTg && pathname.startsWith('/mobile')) {
-            console.log("Redirecting Desktop Telegram user to Desktop UI...");
-            router.replace('/desktop');
-        }
+        console.log("Telegram Platform Debug:", tg.platform);
 
-        // If user is on Mobile Telegram but viewing Desktop Page -> Go to Mobile
-        // (This is less likely if Bot URL is /mobile, but good for safety)
-        if (!isDesktopTg && pathname.startsWith('/desktop')) {
+        // 1. If user is on Mobile Telegram (Android/iOS) but viewing Desktop Page -> Go to Mobile
+        if (isMobilePlatform && pathname.startsWith('/desktop')) {
              console.log("Redirecting Mobile Telegram user to Mobile UI...");
              router.replace('/mobile');
+        }
+
+        // 2. If user is NOT on Mobile (Desktop/Web/Unknown) but viewing Mobile Page -> Go to Desktop
+        // This covers 'tdesktop', 'macos', 'web', 'weba', 'unknown'
+        if (!isMobilePlatform && pathname.startsWith('/mobile')) {
+            console.log("Redirecting Desktop/Web Telegram user to Desktop UI...");
+            router.replace('/desktop');
         }
     }
 
