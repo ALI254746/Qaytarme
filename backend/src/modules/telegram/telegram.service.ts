@@ -94,7 +94,7 @@ export class TelegramService implements OnModuleInit {
                 'topilmalar_uz', 
                 'topilmalar_toshkent', 
                 'Hojiakbar_test_kanal', // Agar test kanalingiz bo'lsa
-                ...activeChannels.map(c => c.username)
+                ...activeChannels.map(c => c.username.replace(/^@/, '')) // Remove @ if present
             ];
 
             this.logger.debug(`Target Channels: ${targetUsernames.join(', ')}`);
