@@ -25,7 +25,7 @@ export default function MobileHomePage() {
   const [pullChange, setPullChange] = useState(0);
   const refreshThreshold = 80;
 
-  const refreshThreshold = 80;
+
 
 
   const CATEGORIES = [
