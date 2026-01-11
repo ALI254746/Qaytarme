@@ -143,6 +143,34 @@ export class TelegramService implements OnModuleInit {
                 return;
             }
 
+            // Handle Private Messages /start
+            if (message.isPrivate && message.message?.startsWith('/start')) {
+                const sender = await message.getSender();
+                this.logger.log(`Received /start from user: ${sender?.id}`);
+                
+                const clientUrl = this.configService.get('CLIENT_URL') || 'https://qaytarme.uz';
+                const webAppUrl = `${clientUrl}/mobile/add`;
+
+                await this.client.sendMessage(sender, {
+                    message: "Assalomu alaykum! Topilmalar va yo'qolgan narsalar bo'yicha yagona tizimga xush kelibsiz.\n\nE'lon berish uchun quyidagi tugmani bosing:",
+                    buttons: new Api.ReplyKeyboardMarkup({
+                        rows: [
+                            new Api.KeyboardButtonRow({
+                                buttons: [
+                                    new Api.KeyboardButtonWebView({
+                                        text: "📢 E'lon qo'shish",
+                                        url: webAppUrl
+                                    })
+                                ]
+                            })
+                        ],
+                        resize: true,
+                        persistent: true
+                    })
+                });
+                return;
+            }
+
             this.logger.log(`>> PROCESSING VALID MESSAGE FROM: ${chatTitle} (@${chatUsername})`);
 
             // 1. Download Media FIRST (for Vision AI)
