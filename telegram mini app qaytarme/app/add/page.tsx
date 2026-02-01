@@ -99,7 +99,7 @@ function AddContent() {
 
   const handleSubmit = async () => {
     if (!validateForm()) {
-      showToast(t("add.pleaseFillAll"), "error");
+      showToast("error", t("add.pleaseFillAll"));
       return;
     }
     
@@ -108,7 +108,7 @@ function AddContent() {
     await new Promise(resolve => setTimeout(resolve, 1500));
     setIsSubmitting(false);
     
-    showToast(t("add.postCreated"), "success");
+    showToast("success", t("add.postCreated"));
     setTimeout(() => router.push("/"), 500);
   };
 

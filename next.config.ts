@@ -21,6 +21,18 @@ const nextConfig: NextConfig = {
       }
     ],
   },
+  // Exclude telegram mini app from main build
+  typescript: {
+    ignoreBuildErrors: false,
+  },
+  webpack: (config, { isServer }) => {
+    // Exclude telegram mini app qaytarme folder from build
+    config.watchOptions = {
+      ...config.watchOptions,
+      ignored: ['**/node_modules/**', '**/telegram mini app qaytarme/**'],
+    };
+    return config;
+  },
 };
 
 export default nextConfig;

@@ -488,13 +488,6 @@ export const translations: Translations = {
     en: "No items in this category yet",
   },
 
-  // Profile Page
-  "profile.memberSince": {
-    uz: "A'zo bo'lgan sana",
-    ru: "Участник с",
-    en: "Member since",
-  },
-
   // Additional
   "add.category": {
     uz: "Kategoriya",
