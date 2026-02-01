@@ -27,11 +27,8 @@ export default function Page() {
           
           console.log("Telegram Environment Detected");
 
-          // Check platform and width
-          const isWide = window.innerWidth >= 768;
-          const targetUrl = isWide ? "/desktop" : "/mobile";
-          
-          console.log("Telegram Detected. Width:", window.innerWidth, "Target:", targetUrl);
+          // Force Mobile UI for ANY Telegram instance (Desktop or Mobile)
+          const targetUrl = "/mobile";
 
           if (session) {
              // Already logged in
@@ -74,12 +71,13 @@ export default function Page() {
       }
 
       // 2. Standard Web Browser Logic
-      // Priority: Screen Width. UserAgent is secondary and less strict.
       const width = window.innerWidth;
-      const isMobile = width < 768; 
+      const userAgent = navigator.userAgent.toLowerCase();
+      const isMobileDevice = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile/i.test(userAgent);
+      const isMobile = width < 768 || isMobileDevice; 
 
       console.log('--- REDIRECT DEBUG ---');
-      console.log('Screen Width:', width, 'Result:', isMobile ? 'Mobile' : 'Desktop');
+      console.log('Device:', isMobile ? 'Mobile' : 'Desktop');
       
       if (session) {
         if (isMobile) {

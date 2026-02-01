@@ -17,7 +17,10 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "check:db": "node check-db.js",
+    "check:categories": "node check-categories.js",
+    "fix:categories": "node fix-categories.js"
   },
   "dependencies": {
     "@google-cloud/translate": "^9.3.0",

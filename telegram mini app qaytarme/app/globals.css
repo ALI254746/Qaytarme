@@ -1,0 +1,361 @@
+@import "tailwindcss";
+@config "../tailwind.config.ts";
+
+@layer base {
+  :root {
+    --background: 53 44% 93%;
+    --foreground: 40 3% 17%;
+    
+    --card: 0 0% 100%;
+    --card-foreground: 40 3% 17%;
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: 40 3% 17%;
+    
+    --primary: 166 31% 75%;
+    --primary-foreground: 220 26% 14%;
+    
+    --secondary: 53 33% 88%;
+    --secondary-foreground: 40 3% 17%;
+    
+    --muted: 60 21% 84%;
+    --muted-foreground: 53 3% 41%;
+    
+    --accent: 166 26% 68%;
+    --accent-foreground: 0 0% 7%;
+    
+    --destructive: 0 68% 62%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 54 28% 86%;
+    --input: 54 28% 86%;
+    --ring: 166 31% 75%;
+    
+    --radius: 1.5rem;
+  }
+
+  /* Dark mode variables */
+  .dark {
+    --background: 220 26% 14%;
+    --foreground: 0 0% 98%;
+    
+    --card: 220 26% 18%;
+    --card-foreground: 0 0% 98%;
+    
+    --popover: 220 26% 18%;
+    --popover-foreground: 0 0% 98%;
+    
+    --primary: 166 31% 65%;
+    --primary-foreground: 220 26% 14%;
+    
+    --secondary: 220 26% 20%;
+    --secondary-foreground: 0 0% 98%;
+    
+    --muted: 220 20% 25%;
+    --muted-foreground: 220 10% 70%;
+    
+    --accent: 166 26% 58%;
+    --accent-foreground: 0 0% 98%;
+
+    --destructive: 0 68% 52%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 220 20% 30%;
+    --input: 220 20% 30%;
+    --ring: 166 31% 65%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+  
+  /* Smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  /* Performance optimizations */
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  /* Better focus styles */
+  *:focus-visible {
+    outline: 2px solid hsl(var(--primary));
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  
+  /* Smooth transitions for interactive elements */
+  button, a, input, textarea {
+    transition-property: transform, opacity, background-color, border-color, color, box-shadow;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 200ms;
+  }
+
+  /* Neumorphism Button Effects */
+  .btn-neumorphism {
+    border-radius: 33px;
+    background: linear-gradient(145deg, #f0f0f0, #cacaca);
+    box-shadow: 
+      17px 17px 34px #b3b3b3,
+      -17px -17px 34px #ffffff;
+    transform: translateY(0);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .btn-neumorphism:hover {
+    box-shadow: 
+      20px 20px 40px #b3b3b3,
+      -20px -20px 40px #ffffff;
+    transform: translateY(-1px);
+  }
+
+  .btn-neumorphism:active {
+    box-shadow: 
+      inset 17px 17px 34px #b3b3b3,
+      inset -17px -17px 34px #ffffff;
+    transform: translateY(0);
+  }
+
+  /* Dark mode neumorphism */
+  .dark .btn-neumorphism {
+    background: linear-gradient(145deg, #2a2a2a, #1f1f1f);
+    box-shadow: 
+      17px 17px 34px #1a1a1a,
+      -17px -17px 34px #353535;
+  }
+
+  .dark .btn-neumorphism:hover {
+    box-shadow: 
+      20px 20px 40px #1a1a1a,
+      -20px -20px 40px #353535;
+  }
+
+  .dark .btn-neumorphism:active {
+    box-shadow: 
+      inset 17px 17px 34px #1a1a1a,
+      inset -17px -17px 34px #353535;
+  }
+
+  /* 3D Button Effects */
+  .btn-3d {
+    box-shadow: 
+      0 4px 6px -1px rgba(0, 0, 0, 0.1),
+      0 2px 4px -1px rgba(0, 0, 0, 0.06),
+      0 0 0 1px rgba(0, 0, 0, 0.05),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+    transform: translateY(0);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .btn-3d:hover {
+    box-shadow: 
+      0 10px 15px -3px rgba(0, 0, 0, 0.1),
+      0 4px 6px -2px rgba(0, 0, 0, 0.05),
+      0 0 0 1px rgba(0, 0, 0, 0.05),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
+    transform: translateY(-1px);
+  }
+
+  .btn-3d:active {
+    box-shadow: 
+      0 2px 4px -1px rgba(0, 0, 0, 0.1),
+      0 1px 2px -1px rgba(0, 0, 0, 0.06),
+      0 0 0 1px rgba(0, 0, 0, 0.05),
+      inset 0 2px 4px 0 rgba(0, 0, 0, 0.1);
+    transform: translateY(0);
+  }
+
+  /* Primary Button 3D */
+  .btn-primary-3d {
+    box-shadow: 
+      0 4px 14px 0 rgba(0, 0, 0, 0.15),
+      0 2px 4px 0 rgba(0, 0, 0, 0.1),
+      0 0 0 1px rgba(0, 0, 0, 0.05),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.2),
+      0 0 20px -5px hsl(var(--primary) / 0.4);
+    transform: translateY(0);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .btn-primary-3d:hover {
+    box-shadow: 
+      0 8px 20px 0 rgba(0, 0, 0, 0.2),
+      0 4px 8px 0 rgba(0, 0, 0, 0.1),
+      0 0 0 1px rgba(0, 0, 0, 0.05),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.3),
+      0 0 30px -5px hsl(var(--primary) / 0.5);
+    transform: translateY(-2px);
+  }
+
+  .btn-primary-3d:active {
+    box-shadow: 
+      0 2px 8px 0 rgba(0, 0, 0, 0.15),
+      0 1px 2px 0 rgba(0, 0, 0, 0.1),
+      0 0 0 1px rgba(0, 0, 0, 0.05),
+      inset 0 2px 4px 0 rgba(0, 0, 0, 0.15),
+      0 0 15px -5px hsl(var(--primary) / 0.3);
+    transform: translateY(0);
+  }
+
+  /* Card 3D Effect */
+  .card-3d {
+    box-shadow: 
+      0 1px 3px 0 rgba(0, 0, 0, 0.1),
+      0 1px 2px 0 rgba(0, 0, 0, 0.06),
+      0 0 0 1px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .card-3d:hover {
+    box-shadow: 
+      0 10px 25px -5px rgba(0, 0, 0, 0.1),
+      0 4px 10px -2px rgba(0, 0, 0, 0.05),
+      0 0 0 1px rgba(0, 0, 0, 0.05);
+    transform: translateY(-2px);
+  }
+
+  /* Text Shadow Effects */
+  .text-shadow-sm {
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  }
+
+  .text-shadow {
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  .text-shadow-md {
+    text-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+
+  .text-shadow-lg {
+    text-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+  }
+
+  .text-shadow-glow {
+    text-shadow: 
+      0 0 10px hsl(var(--primary) / 0.5),
+      0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Glass Morphism Enhanced */
+  .glass-3d {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 
+      0 8px 32px 0 rgba(0, 0, 0, 0.1),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.5);
+  }
+
+  /* Depth Layers */
+  .depth-1 {
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  }
+
+  .depth-2 {
+    box-shadow: 
+      0 1px 3px 0 rgba(0, 0, 0, 0.1),
+      0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  }
+
+  .depth-3 {
+    box-shadow: 
+      0 4px 6px -1px rgba(0, 0, 0, 0.1),
+      0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  }
+
+  .depth-4 {
+    box-shadow: 
+      0 10px 15px -3px rgba(0, 0, 0, 0.1),
+      0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  }
+
+  .depth-5 {
+    box-shadow: 
+      0 20px 25px -5px rgba(0, 0, 0, 0.1),
+      0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  }
+}
+
+/* Leaflet Customization */
+.glass-popup .leaflet-popup-content-wrapper {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-radius: 20px;
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.12),
+    0 2px 8px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  padding: 0;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-popup .leaflet-popup-content-wrapper:hover {
+  box-shadow: 
+    0 12px 40px rgba(0, 0, 0, 0.15),
+    0 4px 12px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  transform: translateY(-2px);
+}
+
+.glass-popup .leaflet-popup-tip {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+.glass-popup .leaflet-popup-close-button {
+  display: none;
+}
+
+/* Custom Marker Styles */
+.marker-custom {
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.15));
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.marker-custom:hover {
+  filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.2));
+  transform: scale(1.1);
+}
+
+/* Loading animation improvements */
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite;
+  background: linear-gradient(
+    to right,
+    hsl(var(--muted)) 0%,
+    hsl(var(--muted) / 0.5) 50%,
+    hsl(var(--muted)) 100%
+  );
+  background-size: 1000px 100%;
+}

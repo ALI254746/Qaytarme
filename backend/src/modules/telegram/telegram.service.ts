@@ -12,6 +12,7 @@ import { Model } from 'mongoose';
 import { InjectModel } from '@nestjs/mongoose';
 import * as fs from 'fs';
 import * as path from 'path';
+import { normalizeCategory } from '../../utils/category.util';
 // import input from 'input'; // Note: input requires interactive terminal, might be tricky in backend auto-start. 
 // Ideally session string should be provided via ENV if already generated, or we generate it once locally.
 
@@ -33,7 +34,8 @@ export class TelegramService implements OnModuleInit {
     @InjectModel(User.name) private userModel: Model<User>,
   ) {
     this.genAI = new GoogleGenerativeAI(this.configService.get<string>('GEMINI_API_KEY') || '');
-    this.model = this.genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+    // Using gemini-1.5-flash as gemini-2.0-flash-exp is not available
+    this.model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
   }
 
   async onModuleInit() {
@@ -216,6 +218,9 @@ export class TelegramService implements OnModuleInit {
             const safeDistrict = this.transliterateCyrillicToLatin(extractedData.district);
             const safeLocation = this.transliterateCyrillicToLatin(extractedData.location);
 
+            // Normalize category to match the 14 valid categories
+            const normalizedCategory = normalizeCategory(extractedData.category);
+
             // Map AI result to DTO
             const arizaData = {
                 title: safeTitle,
@@ -223,7 +228,7 @@ export class TelegramService implements OnModuleInit {
                 description: safeDescription,
                 itemDescription: safeDescription,
                 status: extractedData.status || 'found', // lost or found
-                category: extractedData.category || 'other',
+                category: normalizedCategory, // Normalized to one of 14 valid categories
                 region: safeRegion || 'Toshkent',
                 district: safeDistrict || 'Boshqa',
                 location: safeLocation || 'Toshkent',
@@ -263,20 +268,27 @@ export class TelegramService implements OnModuleInit {
         Extract the following fields in JSON format:
         - status: "lost" or "found" (detect from context like "yo'qaldi", "topib olindi")
         - itemType: Short name of the item. IF NOT IN TEXT, IDENTIFY IT FROM THE IMAGE (e.g., "iPhone 13", "Pasport", "Kalit"). Keep it in Uzbek.
-        - category: STRICTLY choose one from this list based on the item type:
-            * electronics (Telefon, noutbuk, maishiy texnika)
-            * documents (Pasport, guvohnoma, prava, metrika, kartalar)
-            * personal (Hamyon, sumka ichidagi shaxsiy narsalar)
-            * clothing (Kiyim, oyoq kiyim)
-            * accessories (Soat, ko'zoynak, uzuk, zirak)
-            * keys (Uy kaliti, mashina kaliti)
-            * bags (Sumka, ryukzak, chamadon)
-            * automotive (Mashina nomeri, ehtiyot qismlar)
-            * kids (O'yinchoq, kolyaska)
-            * sports (Velosiped, koptok)
-            * books (Kitob, daftar)
-            * pets (Mushuk, it, qush)
-            * other (Boshqa barcha narsalar)
+        - category: STRICTLY choose one from this EXACT list (use lowercase, no spaces):
+            * tech (Telefon, smartphone, noutbuk, kompyuter, tablet, maishiy texnika, elektronika)
+            * pets (Hayvonlar: mushuk, it, qush, baliq va boshqa uy hayvonlari)
+            * keys (Kalitlar: uy kaliti, mashina kaliti, ofis kaliti)
+            * wallet (Hamyon, sumka, portfel, karta, pul)
+            * docs (Hujjatlar: pasport, guvohnoma, prava, metrika, kartalar, sertifikat)
+            * clothing (Kiyim-kechak: ko'ylak, shim, ko'zoynak, oyoq kiyim)
+            * jewelry (Zargarlik buyumlari: uzuk, zirak, soat, marjon, qo'shquloq)
+            * vehicle (Transport: velosiped, skuter, mototsikl, mashina ehtiyot qismlari)
+            * home (Uy-ro'zg'or buyumlari: mebel, idish-tovoq, uy jihozlari)
+            * sports (Sport anjomlari: to'p, raketka, sport kiyimlari, sport uskunalari)
+            * toys (O'yinchoqlar: qog'oz o'yinchoqlar, robotlar, lolipoplar)
+            * books (Kitoblar: kitob, daftar, jurnal, qo'llanma)
+            * tools (Asbob-uskunalar: bolg'a, o'roq, qaychi, boshqa asboblar)
+            * food (Oziq-ovqat: ovqat, ichimlik, mahsulotlar)
+        
+        IMPORTANT: 
+        - category MUST be exactly one of the 14 values above (lowercase, no spaces)
+        - If item doesn't fit any category, choose the closest match
+        - DO NOT use "other" or any other value not in the list
+        
         - description: Use the original text if it describes the situation or item. ONLY generate a description from the image if the text is completely missing or just says "Found" or "Lost".
         - region: Region name in Uzbekistan (Infer from image landmarks or text)
         - district: District name
@@ -307,6 +319,7 @@ export class TelegramService implements OnModuleInit {
         return null;
     }
   }
+
   private transliterateCyrillicToLatin(text: string): string {
     if (!text) return text;
     const map = {

@@ -41,7 +41,13 @@ export class Ariza extends Document {
   @Prop()
   itemDescription: string;
 
-  @Prop()
+  @Prop({ 
+    type: String,
+    enum: ['tech', 'pets', 'keys', 'wallet', 'docs', 'clothing', 'jewelry', 'vehicle', 'home', 'sports', 'toys', 'books', 'tools', 'food'],
+    default: 'tech',
+    lowercase: true,
+    trim: true
+  })
   category: string;
 
 

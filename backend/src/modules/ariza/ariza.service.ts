@@ -6,8 +6,8 @@ import { Ariza } from '../../schemas/ariza.schema';
 import { User } from '../../schemas/user.schema';
 import { MatchesService } from '../matches/matches.service';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
-
 import { TranslationService } from '../translation/translation.service';
+import { normalizeCategory } from '../../utils/category.util';
 
 @Injectable()
 export class ArizaService {
@@ -188,6 +188,8 @@ export class ArizaService {
           itemName: this.transliterateCyrillicToLatin(data.itemName),
           itemDescription: this.transliterateCyrillicToLatin(data.itemDescription),
           fullName: this.transliterateCyrillicToLatin(data.fullName),
+          // Normalize category to ensure it matches one of the 14 valid categories
+          category: normalizeCategory(data.category),
       };
 
       // Parse coordinates if string
