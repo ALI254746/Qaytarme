@@ -21,18 +21,13 @@ const nextConfig: NextConfig = {
       }
     ],
   },
-  // Exclude telegram mini app from main build
+  // TypeScript configuration
   typescript: {
     ignoreBuildErrors: false,
   },
-  webpack: (config, { isServer }) => {
-    // Exclude telegram mini app qaytarme folder from build
-    config.watchOptions = {
-      ...config.watchOptions,
-      ignored: ['**/node_modules/**', '**/telegram mini app qaytarme/**'],
-    };
-    return config;
-  },
+  // Turbopack configuration (Next.js 16+)
+  // Empty config to silence the error - telegram mini app is already excluded via tsconfig.json
+  turbopack: {},
 };
 
 export default nextConfig;
