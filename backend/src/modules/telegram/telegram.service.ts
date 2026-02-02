@@ -71,8 +71,16 @@ export class TelegramService implements OnModuleInit {
         await this.joinChannels(); // Auto-join channels from DB
         this.startListening();
 
-    } catch (e) {
-        this.logger.error('Failed to connect to Telegram:', e);
+    } catch (e: any) {
+        // Handle AUTH_KEY_DUPLICATED error specifically
+        if (e.code === 406 && e.errorMessage === 'AUTH_KEY_DUPLICATED') {
+            this.logger.error('Telegram AUTH_KEY_DUPLICATED: Session key is being used elsewhere.');
+            this.logger.error('Please generate a new session string using: node generate-session.js');
+            this.logger.error('Or check if another instance is using the same session.');
+            this.logger.warn('Telegram service disabled. Please update TELEGRAM_SESSION in .env with a new session.');
+        } else {
+            this.logger.error('Failed to connect to Telegram:', e);
+        }
     }
   }
 

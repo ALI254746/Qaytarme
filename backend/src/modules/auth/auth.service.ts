@@ -232,35 +232,4 @@ export class AuthService {
 
     return { message: 'Parol muvaffaqiyatli yangilandi' };
   }
-
-  async telegramLogin(data: { id: number; first_name: string; username?: string; photo_url?: string; hash: string }) {
-    // In production: Verify data.hash using your BOT_TOKEN to ensure data is from Telegram.
-    
-    let user = await this.usersService.findByTelegramId(data.id);
-
-    if (!user) {
-        // Create new user
-        user = await this.usersService.create({
-            email: `tg_${data.id}@musodara.uz`, // Fake email for schema compliance
-            name: data.first_name,
-            password: await bcrypt.hash(Math.random().toString(36).slice(-10), 10),
-            isVerified: true,
-            avatar: data.photo_url || '',
-            telegramId: data.id,
-        });
-    }
-
-    const payload = { email: user.email, sub: user._id, role: user.role };
-    
-    return {
-      access_token: this.jwtService.sign(payload),
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        avatar: user.avatar,
-      },
-    };
-  }
 }

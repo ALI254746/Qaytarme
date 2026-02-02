@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
-import { useTelegram } from "@/app/hooks/useTelegram";
 
 // --- BRAND COLORS (LIGHT & FRESH) ---
 // Mint:      #A9D3C9 (Primary Accent)
@@ -89,7 +88,6 @@ const foundItems = [
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { tg } = useTelegram();
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -97,20 +95,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [focusedField, setFocusedField] = useState(null);
   
-  // Default to FALSE (hidden) to prevent flashing/errors in Telegram
-  const [isBrowser, setIsBrowser] = useState(false);
-
-  useEffect(() => {
-    // Strict check: Only show if window exists AND NOT inside Telegram
-    if (typeof window !== 'undefined') {
-       const userAgent = navigator.userAgent.toLowerCase();
-       const isTg = !!tg?.initData || userAgent.includes("telegram") || userAgent.includes("wv"); // wv = WebView
-       
-       if (!isTg) {
-          setIsBrowser(true);
-       }
-    }
-  }, [tg]);
+  const [isBrowser, setIsBrowser] = useState(true);
 
   useEffect(() => {
     const verified = searchParams.get("verified");
