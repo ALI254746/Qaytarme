@@ -54,6 +54,12 @@ EMAIL_FROM=noreply@qaytarme.uz
 GOOGLE_TRANSLATE_API_KEY=your-google-translate-api-key
 ```
 
+### Google Maps API (Places/Geocoding) - Optional
+```env
+GOOGLE_MAPS_API_KEY=your-google-maps-api-key
+```
+**Note:** If not provided, the system will use hardcoded coordinates for known locations only.
+
 ### Push Notifications (VAPID)
 ```env
 VAPID_PUBLIC_KEY=your-vapid-public-key
@@ -100,11 +106,35 @@ CLIENT_URL=http://localhost:3000
 
 ## 🔑 API Key'larni Qanday Olish
 
-### 1. Gemini API Key
-- [Google AI Studio](https://makersuite.google.com/app/apikey) ga kiring
-- Yangi API key yarating
+### 1. Gemini API Key (Bepul)
+**Variant 1: Google AI Studio (Eng oson)**
+- [Google AI Studio](https://aistudio.google.com/app/apikey) ga kiring
+- Google hisobingiz bilan kirish
+- "Get API Key" yoki "Create API Key" tugmasini bosing
+- API kalitni ko'chirib `.env` fayliga qo'shing
 
-### 2. Telegram API
+**Variant 2: Google Cloud Console**
+- [Google Cloud Console](https://console.cloud.google.com) ga kiring
+- Yangi loyiha yarating
+- "APIs & Services" > "Library" ga kiring
+- "Generative Language API" ni qidiring va "Enable" qiling
+- "APIs & Services" > "Credentials" > "Create Credentials" > "API Key"
+- API kalitni ko'chirib `.env` fayliga qo'shing
+
+**Eslatma:** Agar API kalit bo'lmasa, tizim AI siz ham ishlaydi (asosiy matn analizi bilan)
+
+### 2. Google Maps API Key (Ixtiyoriy - Joylashuv koordinatalari uchun)
+- [Google Cloud Console](https://console.cloud.google.com) ga kiring
+- Loyihangizni tanlang yoki yangi yarating
+- "APIs & Services" > "Library" ga kiring
+- "Geocoding API" ni qidiring va "Enable" qiling
+- "Places API" ni ham qidiring va "Enable" qiling (ixtiyoriy, lekin tavsiya etiladi)
+- "APIs & Services" > "Credentials" > "Create Credentials" > "API Key"
+- API kalitni ko'chirib `.env` fayliga qo'shing: `GOOGLE_MAPS_API_KEY=your-key-here`
+
+**Eslatma:** Agar API kalit bo'lmasa, tizim faqat hardcoded joylar uchun koordinatalarni ishlatadi (bakatoshi pitak, Chilonzor va boshqalar)
+
+### 3. Telegram API
 - [my.telegram.org](https://my.telegram.org) ga kiring
 - API development tools bo'limiga o'ting
 - API ID va API Hash oling
