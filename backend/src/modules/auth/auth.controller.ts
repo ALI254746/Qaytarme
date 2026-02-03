@@ -1,5 +1,5 @@
 
-import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode, HttpStatus, Logger } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './register.dto';
 import { LoginDto } from './login.dto';
@@ -9,6 +9,8 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @Controller('auth')
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
+  
   constructor(private authService: AuthService) {}
 
   @Post('register')
@@ -37,7 +39,15 @@ export class AuthController {
   @Post('social-login')
   @HttpCode(HttpStatus.OK)
   async socialLogin(@Body() data: { email: string; name: string; avatar?: string }) {
-    return this.authService.socialLogin(data);
+    try {
+      this.logger.log(`Social login request for email: ${data.email}`);
+      const result = await this.authService.socialLogin(data);
+      this.logger.log(`Social login successful for email: ${data.email}`);
+      return result;
+    } catch (error) {
+      this.logger.error(`Social login failed for email: ${data.email}`, error.stack || error.message);
+      throw error;
+    }
   }
 
   @Post('forgot-password')

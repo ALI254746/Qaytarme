@@ -1,5 +1,5 @@
 
-import { Injectable, UnauthorizedException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, BadRequestException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { UsersService } from '../users/users.service';
@@ -11,6 +11,8 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+  
   constructor(
     private usersService: UsersService,
     private jwtService: JwtService,
@@ -148,35 +150,49 @@ export class AuthService {
   }
 
   async socialLogin(data: { email: string; name: string; avatar?: string }) {
-    let user = await this.usersService.findByEmail(data.email);
+    try {
+      this.logger.debug(`Social login: Finding user by email: ${data.email}`);
+      let user = await this.usersService.findByEmail(data.email);
 
-    if (!user) {
-      user = await this.usersService.create({
-        email: data.email,
-        name: data.name,
-        avatar: data.avatar,
-        isVerified: true,
-        password: await bcrypt.hash(Math.random().toString(36).slice(-10), 10),
-      });
-    } else if (!user.isVerified) {
-      user = await this.usersService.update(user._id.toString(), { isVerified: true });
+      if (!user) {
+        this.logger.log(`Social login: User not found, creating new user: ${data.email}`);
+        user = await this.usersService.create({
+          email: data.email,
+          name: data.name,
+          avatar: data.avatar,
+          isVerified: true,
+          password: await bcrypt.hash(Math.random().toString(36).slice(-10), 10),
+        });
+        this.logger.log(`Social login: User created successfully: ${user._id}`);
+      } else if (!user.isVerified) {
+        this.logger.log(`Social login: User exists but not verified, updating: ${user._id}`);
+        user = await this.usersService.update(user._id.toString(), { isVerified: true });
+      }
+
+      if (!user) {
+        this.logger.error(`Social login: Failed to create/update user for email: ${data.email}`);
+        throw new BadRequestException('Foydalanuvchi yaratishda xatolik');
+      }
+
+      this.logger.debug(`Social login: Generating JWT token for user: ${user._id}`);
+      const payload = { email: user.email, sub: user._id, role: user.role };
+      const access_token = this.jwtService.sign(payload);
+      
+      this.logger.log(`Social login: Successfully authenticated user: ${data.email}`);
+      return {
+        access_token,
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          avatar: user.avatar,
+        },
+      };
+    } catch (error) {
+      this.logger.error(`Social login error for email: ${data.email}`, error.stack || error.message);
+      throw error;
     }
-
-    if (!user) {
-      throw new BadRequestException('Foydalanuvchi yaratishda xatolik');
-    }
-
-    const payload = { email: user.email, sub: user._id, role: user.role };
-    return {
-      access_token: this.jwtService.sign(payload),
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        avatar: user.avatar,
-      },
-    };
   }
 
   async forgotPassword(forgotPasswordDto: ForgotPasswordDto) {

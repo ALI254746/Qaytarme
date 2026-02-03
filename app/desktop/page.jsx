@@ -320,7 +320,7 @@ export default function DashboardPage() {
 
         const queryParams = new URLSearchParams({
            page: pageNum,
-           limit: 12,
+           limit: 24, // Increased from 12 to 24 for better initial load
            search: searchQuery,
            status: filter !== 'all' ? filter : '',
            category: category !== 'all' ? category : '',
