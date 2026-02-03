@@ -337,7 +337,18 @@ export default function DashboardPage() {
         if (res.ok) {
            const newItems = data.arizalar || [];
            setItems(prev => isNew ? newItems : [...prev, ...newItems]);
-           setHasMore(data.currentPage < data.totalPages);
+           // Backend returns hasMore directly - use it if available, otherwise check if we got a full page
+           const hasMoreItems = data.hasMore !== undefined 
+              ? data.hasMore 
+              : newItems.length >= 24;
+           console.log('Pagination:', { 
+              page: pageNum, 
+              itemsReceived: newItems.length, 
+              hasMore: data.hasMore, 
+              calculatedHasMore: hasMoreItems,
+              total: data.total 
+           });
+           setHasMore(hasMoreItems);
         }
      } catch (err) {
         console.error("Error fetching items:", err);
