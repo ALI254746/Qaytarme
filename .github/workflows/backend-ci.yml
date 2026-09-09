@@ -67,6 +67,23 @@ jobs:
       - run: npm ci
       - run: npm test -- --runInBand matching-score.util.spec.ts
 
+  matching-service-tests:
+    name: Test live matching integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm test -- --runInBand matches.service.spec.ts
+
   category-tests:
     name: Test category matcher - ${{ matrix.scenario }}
     runs-on: ubuntu-latest
