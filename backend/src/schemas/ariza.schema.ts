@@ -1,5 +1,10 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import {
+  buildProvenance,
+  SourceProvenance as SourceProvenanceValue,
+  SourceType,
+} from '../utils/provenance.util';
 
 @Schema({ _id: false })
 class Image {
@@ -11,6 +16,47 @@ class Image {
 }
 
 const ImageSchema = SchemaFactory.createForClass(Image);
+
+@Schema({ _id: false })
+export class SourceProvenance {
+  @Prop({
+    enum: ['telegram', 'web', 'telegram_bot', 'mobile_app', 'admin', 'unknown'],
+    default: 'unknown',
+  })
+  sourceType: SourceType;
+
+  @Prop()
+  sourceUrl?: string;
+
+  @Prop()
+  sourceName?: string;
+
+  @Prop()
+  channelUsername?: string;
+
+  @Prop({ type: [String], default: [] })
+  messageIds: string[];
+
+  @Prop()
+  publishedAt?: Date;
+
+  @Prop({ default: Date.now })
+  collectedAt: Date;
+
+  @Prop()
+  originalText: string;
+
+  @Prop()
+  normalizedText: string;
+
+  @Prop({ index: true })
+  contentHash: string;
+
+  @Prop({ default: 'provenance-v1' })
+  parserVersion: string;
+}
+
+const SourceProvenanceSchema = SchemaFactory.createForClass(SourceProvenance);
 
 @Schema({ timestamps: true })
 export class Ariza extends Document {
@@ -41,24 +87,23 @@ export class Ariza extends Document {
   @Prop()
   itemDescription: string;
 
-  @Prop({ 
+  @Prop({
     type: String,
     enum: ['tech', 'pets', 'keys', 'wallet', 'docs', 'clothing', 'jewelry', 'vehicle', 'home', 'sports', 'toys', 'books', 'tools', 'food'],
     default: 'tech',
     lowercase: true,
-    trim: true
+    trim: true,
   })
   category: string;
-
 
   @Prop()
   date: string;
 
   @Prop()
-  status: string; // lost or found
+  status: string;
 
   @Prop({ default: 'pending' })
-  moderationStatus: string; // pending, approved, rejected, returned
+  moderationStatus: string;
 
   @Prop({ type: Types.ObjectId, ref: 'User', default: null })
   matchedUser: Types.ObjectId;
@@ -92,6 +137,9 @@ export class Ariza extends Document {
   @Prop({ type: ImageSchema })
   image: Image;
 
+  @Prop({ type: SourceProvenanceSchema })
+  provenance: SourceProvenanceValue;
+
   @Prop({ default: 0 })
   likeCount: number;
 
@@ -100,3 +148,18 @@ export class Ariza extends Document {
 }
 
 export const ArizaSchema = SchemaFactory.createForClass(Ariza);
+
+ArizaSchema.pre('validate', function () {
+  const document = this as unknown as Ariza;
+  document.provenance = buildProvenance(
+    document.provenance ?? {},
+    document.itemDescription ?? document.itemName ?? document.itemType ?? '',
+  );
+});
+
+ArizaSchema.index({
+  'provenance.sourceType': 1,
+  'provenance.channelUsername': 1,
+  'provenance.messageIds': 1,
+});
+ArizaSchema.index({ 'provenance.contentHash': 1, createdAt: -1 });
