@@ -18,8 +18,6 @@ export type CategoryMatchResult = {
   conflicts: string[];
 };
 
-type ExtractedFeatures = Record<string, string | undefined>;
-
 const COLORS = [
   'qora', 'oq', 'qizil', 'kok', "ko'k", 'yashil', 'sariq', 'kulrang',
   'jigarrang', 'pushti', 'binafsha', 'gold', 'silver', 'black', 'white',
@@ -74,7 +72,11 @@ function extractTechModel(text: string): string | undefined {
     /\b(?:galaxy\s?)?[as]\d{2}(?:\s?(?:ultra|plus|fe))?\b/,
     /\b(?:redmi|note|poco)\s?[a-z0-9]+(?:\s?(?:pro|plus))?\b/,
   ];
-  return patterns.map((pattern) => text.match(pattern)?.[0]).find(Boolean);
+  const model = patterns
+    .map((pattern) => text.match(pattern)?.[0])
+    .find(Boolean);
+
+  return model?.replace(/^galaxy\s+/, '').replace(/\s+/g, ' ').trim();
 }
 
 function extractStorage(text: string): string | undefined {
