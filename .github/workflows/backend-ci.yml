@@ -85,9 +85,17 @@ jobs:
       - run: npm test -- --runInBand matching-score.util.spec.ts
 
   matching-service-tests:
-    name: Test live matching integration
+    name: Test live matching - ${{ matrix.scenario }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - scenario: creates-match
+            pattern: creates a real match
+          - scenario: rejects-conflict
+            pattern: does not create a match
     defaults:
       run:
         working-directory: backend
@@ -99,7 +107,7 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
-      - run: npm test -- --runInBand matches.service.spec.ts
+      - run: npm test -- --runInBand matches.service.spec.ts -t "${{ matrix.pattern }}"
 
   category-tests:
     name: Test category matcher - ${{ matrix.scenario }}
