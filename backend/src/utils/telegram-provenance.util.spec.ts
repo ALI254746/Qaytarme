@@ -1,3 +1,4 @@
+import { mapTelegramAnnouncement } from '../modules/telegram/telegram-ingestion.mapper';
 import { buildTelegramProvenance } from './telegram-provenance.util';
 
 describe('buildTelegramProvenance', () => {
@@ -37,5 +38,27 @@ describe('buildTelegramProvenance', () => {
     expect(provenance.sourceUrl).toBeUndefined();
     expect(provenance.messageIds).toEqual(['42']);
     expect(provenance.sourceName).toBe('Private source');
+  });
+
+  it('maps parsed announcement fields with Telegram evidence', () => {
+    const result = mapTelegramAnnouncement(
+      {
+        title: 'Samsung S23', itemType: 'Telefon', description: 'Telefon topildi',
+        itemDescription: 'Telefon topildi', status: 'found', category: 'tech',
+        region: 'Toshkent', district: 'Chilonzor', location: 'Chilonzor metro',
+        date: '2026-09-10', phone: '', telegram: '@contact', image: null,
+        coordinates: { lat: 41.28, lng: 69.2 },
+      },
+      {
+        messages: [{ id: 991, date: 1788980100 }],
+        chatTitle: 'Topilmalar', chatUsername: '@topilmalar_uz',
+        originalText: 'Telefon topildi',
+      },
+    );
+
+    expect(result.title).toBe('Samsung S23');
+    expect(result.provenance.sourceType).toBe('telegram');
+    expect(result.provenance.sourceUrl).toBe('https://t.me/topilmalar_uz/991');
+    expect(result.provenance.contentHash).toMatch(/^[a-f0-9]{64}$/);
   });
 });
