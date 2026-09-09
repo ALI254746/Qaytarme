@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TelegramService } from './telegram.service';
+import { TelegramProvenanceConnector } from './telegram-provenance.connector';
 import { ArizaModule } from '../ariza/ariza.module';
 import { MongooseModule } from '@nestjs/mongoose';
 import { TelegramChannel, TelegramChannelSchema } from '../../schemas/telegram-channel.schema';
@@ -17,7 +18,7 @@ import { CloudinaryModule } from '../cloudinary/cloudinary.module';
       { name: User.name, schema: UserSchema },
     ]),
   ],
-  providers: [TelegramService],
-  exports: [TelegramService], // Optional
+  providers: [TelegramService, TelegramProvenanceConnector],
+  exports: [TelegramService],
 })
 export class TelegramModule {}
