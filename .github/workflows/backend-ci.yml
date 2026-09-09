@@ -50,6 +50,23 @@ jobs:
       - run: npm ci
       - run: npm test -- --runInBand text-normalization.util.spec.ts
 
+  provenance-tests:
+    name: Test source provenance
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm test -- --runInBand provenance.util.spec.ts
+
   scoring-tests:
     name: Test weighted scoring
     runs-on: ubuntu-latest
