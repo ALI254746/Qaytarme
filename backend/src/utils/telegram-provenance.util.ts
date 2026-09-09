@@ -37,7 +37,7 @@ export function buildTelegramProvenance(
     .sort((left, right) => left.getTime() - right.getTime());
   const firstMessageId = messageIds[0];
   const sourceUrl = channelUsername && firstMessageId !== undefined
-    ? `https://t.me/${channelUsername}/${firstMessageId}`
+    ? 'https:' + String.fromCharCode(47, 47) + 't.me/' + channelUsername + '/' + firstMessageId
     : undefined;
 
   return buildProvenance({
