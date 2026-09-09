@@ -16,31 +16,88 @@ permissions:
   contents: read
 
 jobs:
-  build-and-test:
-    name: Build and test backend
+  build:
+    name: Build backend
     runs-on: ubuntu-latest
     timeout-minutes: 15
-
     defaults:
       run:
         working-directory: backend
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run build
 
-      - name: Install dependencies
-        run: npm ci
+  normalization-tests:
+    name: Test text normalization
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm test -- --runInBand text-normalization.util.spec.ts
 
-      - name: Build backend
-        run: npm run build
+  scoring-tests:
+    name: Test weighted scoring
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm test -- --runInBand matching-score.util.spec.ts
 
-      - name: Run OSINT utility tests
-        run: npm test -- --runInBand text-normalization.util.spec.ts matching-score.util.spec.ts
+  category-tests:
+    name: Test category matcher - ${{ matrix.scenario }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - scenario: docs-redaction
+            pattern: matches documents
+          - scenario: docs-conflict
+            pattern: detects conflicting
+          - scenario: tech
+            pattern: matches technology
+          - scenario: wallet
+            pattern: matches bank cards
+          - scenario: keys
+            pattern: matches keys
+          - scenario: category-rejection
+            pattern: rejects different
+          - scenario: generic
+            pattern: uses a generic fallback
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm test -- --runInBand category-matcher.util.spec.ts -t "${{ matrix.pattern }}"
