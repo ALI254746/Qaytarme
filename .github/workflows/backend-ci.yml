@@ -50,6 +50,23 @@ jobs:
       - run: npm ci
       - run: npm test -- --runInBand text-normalization.util.spec.ts
 
+  provenance-tests:
+    name: Test source provenance
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm test -- --runInBand provenance.util.spec.ts
+
   scoring-tests:
     name: Test weighted scoring
     runs-on: ubuntu-latest
@@ -68,9 +85,17 @@ jobs:
       - run: npm test -- --runInBand matching-score.util.spec.ts
 
   matching-service-tests:
-    name: Test live matching integration
+    name: Test live matching - ${{ matrix.scenario }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - scenario: creates-match
+            pattern: creates a real match
+          - scenario: rejects-conflict
+            pattern: does not create a match
     defaults:
       run:
         working-directory: backend
@@ -82,7 +107,7 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
-      - run: npm test -- --runInBand matches.service.spec.ts
+      - run: npm test -- --runInBand matches.service.spec.ts -t "${{ matrix.pattern }}"
 
   category-tests:
     name: Test category matcher - ${{ matrix.scenario }}
