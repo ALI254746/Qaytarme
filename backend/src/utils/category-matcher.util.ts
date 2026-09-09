@@ -173,8 +173,9 @@ function matchKeys(left: MatchableItem, right: MatchableItem): CategoryMatchResu
     extractKeyCount(leftText), extractKeyCount(rightText), 25);
   addComparison(signals, conflicts, 'vehicle', 'Avtomobil belgisi',
     firstIncluded(leftText, VEHICLE_BRANDS), firstIncluded(rightText, VEHICLE_BRANDS), 30);
-  const fobLeft = /\b(brelok|pult|signalizatsiya)\b/.test(leftText) ? 'brelok/pult' : undefined;
-  const fobRight = /\b(brelok|pult|signalizatsiya)\b/.test(rightText) ? 'brelok/pult' : undefined;
+  const keyFobPattern = /\b(brelok(?:li)?|pult(?:i|li)?|signalizatsiya)\b/;
+  const fobLeft = keyFobPattern.test(leftText) ? 'brelok/pult' : undefined;
+  const fobRight = keyFobPattern.test(rightText) ? 'brelok/pult' : undefined;
   addComparison(signals, conflicts, 'accessory', 'Brelok yoki pult', fobLeft, fobRight, 20);
   const textScore = Math.round(calculateTokenSimilarity(leftText, rightText) * 25);
   signals.push({ key: 'description', label: 'Kalit tavsifi', score: textScore, maxScore: 25 });
