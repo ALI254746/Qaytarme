@@ -1,21 +1,45 @@
-name: Backend CI
+name: Application CI
 
 on:
   pull_request:
     paths:
       - 'backend/**'
+      - 'app/**'
+      - 'components/**'
+      - 'package.json'
+      - 'package-lock.json'
       - '.github/workflows/backend-ci.yml'
   push:
     branches:
       - main
     paths:
       - 'backend/**'
+      - 'app/**'
+      - 'components/**'
+      - 'package.json'
+      - 'package-lock.json'
       - '.github/workflows/backend-ci.yml'
 
 permissions:
   contents: read
 
 jobs:
+  frontend-build:
+    name: Build frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
+
   build:
     name: Build backend
     runs-on: ubuntu-latest
@@ -65,7 +89,7 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
-      - run: npm test -- --runInBand provenance.util.spec.ts
+      - run: npm test -- --runInBand provenance.util.spec.ts telegram-provenance.util.spec.ts
 
   scoring-tests:
     name: Test weighted scoring
