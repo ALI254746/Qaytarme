@@ -43,4 +43,4 @@ jobs:
         run: npm run build
 
       - name: Run OSINT utility tests
-        run: npm test -- --runInBand text-normalization.util.spec.ts matching-score.util.spec.ts
+        run: npm test -- --runInBand text-normalization.util.spec.ts matching-score.util.spec.ts category-matcher.util.spec.ts
