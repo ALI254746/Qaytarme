@@ -42,5 +42,5 @@ jobs:
       - name: Build backend
         run: npm run build
 
-      - name: Run normalization tests
-        run: npm test -- --runInBand text-normalization.util.spec.ts
+      - name: Run OSINT utility tests
+        run: npm test -- --runInBand text-normalization.util.spec.ts matching-score.util.spec.ts
