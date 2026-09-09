@@ -44,10 +44,10 @@ export class SourceProvenance {
   @Prop({ default: Date.now })
   collectedAt: Date;
 
-  @Prop()
+  @Prop({ select: false })
   originalText: string;
 
-  @Prop()
+  @Prop({ select: false })
   normalizedText: string;
 
   @Prop({ index: true })
