@@ -1,7 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
-import {
-  buildProvenance,
+import { buildProvenance } from '../utils/provenance.util';
+import type {
   SourceProvenance as SourceProvenanceValue,
   SourceType,
 } from '../utils/provenance.util';
