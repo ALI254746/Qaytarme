@@ -84,7 +84,7 @@ function extractStorage(text: string): string | undefined {
 }
 
 function extractKeyCount(text: string): string | undefined {
-  return text.match(/\b([1-9])\s?(?:ta)?\s?(?:dona)?\s?kalit/)?.[1];
+  return text.match(/\b([1-9])\s?(?:ta|dona)?\b(?=.{0,30}\bkalit)/)?.[1];
 }
 
 function addComparison(
