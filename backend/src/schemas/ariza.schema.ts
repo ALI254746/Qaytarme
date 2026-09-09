@@ -20,6 +20,7 @@ const ImageSchema = SchemaFactory.createForClass(Image);
 @Schema({ _id: false })
 export class SourceProvenance {
   @Prop({
+    type: String,
     enum: ['telegram', 'web', 'telegram_bot', 'mobile_app', 'admin', 'unknown'],
     default: 'unknown',
   })
