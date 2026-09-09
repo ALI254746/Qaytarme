@@ -68,9 +68,27 @@ jobs:
       - run: npm test -- --runInBand matching-score.util.spec.ts
 
   category-tests:
-    name: Test category matchers
+    name: Test category matcher - ${{ matrix.scenario }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - scenario: docs-redaction
+            pattern: matches documents
+          - scenario: docs-conflict
+            pattern: detects conflicting
+          - scenario: tech
+            pattern: matches technology
+          - scenario: wallet
+            pattern: matches bank cards
+          - scenario: keys
+            pattern: matches keys
+          - scenario: category-rejection
+            pattern: rejects different
+          - scenario: generic
+            pattern: uses a generic fallback
     defaults:
       run:
         working-directory: backend
@@ -82,4 +100,4 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
-      - run: npm test -- --runInBand category-matcher.util.spec.ts
+      - run: npm test -- --runInBand category-matcher.util.spec.ts -t "${{ matrix.pattern }}"
