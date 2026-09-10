@@ -1,4 +1,4 @@
-import { distanceKm, fromGeoPoint } from './geo.util';
+import { distanceKm, fromGeoPoint, toGeoPoint } from './geo.util';
 import type { GeoPoint, LatLng } from './geo.util';
 import { compareImages } from './image-hash.util';
 import { fingerprintSimilarity, hammingDistance, jaccardSimilarity } from './simhash.util';
@@ -27,7 +27,7 @@ export type DedupeCandidate = {
   channelUsername?: string | null;
   sourceUrl?: string | null;
   messageIds?: string[];
-  coordinates?: LatLng | null;
+  coordinates?: LatLng;
   geo?: GeoPoint | null;
   occurredAt?: Date | string | null;
   publishedAt?: Date | string | null;
@@ -65,11 +65,20 @@ function bestTimestamp(candidate: DedupeCandidate): Date | null {
   );
 }
 
-function coordinatesOf(candidate: DedupeCandidate): LatLng | null {
-  if (candidate.coordinates?.lat != null && candidate.coordinates?.lng != null) {
-    return candidate.coordinates;
+/**
+ * Coordinates can arrive as `{ lat, lng }` (possibly as strings) or as a
+ * stored GeoJSON point. Both are normalised through the geo helpers, which
+ * also drop (0,0) and out of range values.
+ */
+function coordinatesOf(
+  candidate: DedupeCandidate,
+): { lat: number; lng: number } | null {
+  const point = toGeoPoint(candidate.coordinates) ?? candidate.geo ?? null;
+  const plain = fromGeoPoint(point);
+  if (!plain || !Number.isFinite(plain.lat) || !Number.isFinite(plain.lng)) {
+    return null;
   }
-  return fromGeoPoint(candidate.geo ?? null);
+  return plain;
 }
 
 function sameChannelMessage(left: DedupeCandidate, right: DedupeCandidate): boolean {
@@ -101,11 +110,7 @@ export function evaluateDuplicate(
     blockers.push('Yoqolgan va topilgan elonlar takror deb belgilanmaydi');
   }
 
-  if (
-    left.category &&
-    right.category &&
-    left.category !== right.category
-  ) {
+  if (left.category && right.category && left.category !== right.category) {
     blockers.push('Kategoriya mos emas');
   }
 
@@ -162,7 +167,9 @@ export function evaluateDuplicate(
   // Token overlap, an independent opinion on the text.
   if (left.text && right.text) {
     const jaccard = jaccardSimilarity(left.text, right.text);
-    if (jaccard >= 0.7) reasons.push(`Sozlar ustma-ust tushdi (${Math.round(jaccard * 100)}%)`);
+    if (jaccard >= 0.7) {
+      reasons.push(`Sozlar ustma-ust tushdi (${Math.round(jaccard * 100)}%)`);
+    }
     signals.push({
       name: 'tokenOverlap',
       weight: 0.2,
@@ -193,7 +200,8 @@ export function evaluateDuplicate(
   const rightTime = bestTimestamp(right);
   if (leftTime && rightTime) {
     const hours = Math.abs(leftTime.getTime() - rightTime.getTime()) / 3_600_000;
-    const score = hours <= REPOST_WINDOW_HOURS ? 1 - hours / (REPOST_WINDOW_HOURS * 2) : 0;
+    const score =
+      hours <= REPOST_WINDOW_HOURS ? 1 - hours / (REPOST_WINDOW_HOURS * 2) : 0;
     if (hours <= 24) reasons.push(`Bir kun ichida joylangan (${Math.round(hours)} soat)`);
     signals.push({
       name: 'time',
@@ -208,16 +216,14 @@ export function evaluateDuplicate(
   const rightPoint = coordinatesOf(right);
   if (leftPoint && rightPoint) {
     const km = distanceKm(leftPoint, rightPoint);
-    if (km !== null) {
-      const score = km <= REPOST_RADIUS_KM ? 1 - km / (REPOST_RADIUS_KM * 2) : 0;
-      if (km <= 1) reasons.push('Bir joydan berilgan');
-      signals.push({
-        name: 'geo',
-        weight: 0.1,
-        score: Math.max(0, score),
-        detail: `${km.toFixed(1)} km masofa`,
-      });
-    }
+    const score = km <= REPOST_RADIUS_KM ? 1 - km / (REPOST_RADIUS_KM * 2) : 0;
+    if (km <= 1) reasons.push('Bir joydan berilgan');
+    signals.push({
+      name: 'geo',
+      weight: 0.1,
+      score: Math.max(0, score),
+      detail: `${km.toFixed(1)} km masofa`,
+    });
   }
 
   const totalWeight = signals.reduce((sum, signal) => sum + signal.weight, 0);
@@ -230,8 +236,8 @@ export function evaluateDuplicate(
             100,
         );
 
-  // The text fingerprint is mandatory evidence: geo and time alone describe
-  // half the announcements in Tashkent on any given day.
+  // A fingerprint or image match is mandatory evidence: geo and time alone
+  // describe half the announcements in Tashkent on any given day.
   const hasStrongEvidence = signals.some(
     (signal) =>
       (signal.name === 'textFingerprint' || signal.name === 'imageHash') &&
@@ -241,7 +247,7 @@ export function evaluateDuplicate(
   let verdict: DedupeVerdict = 'unique';
   if (blockers.length === 0 && hasStrongEvidence && score >= DUPLICATE_THRESHOLD) {
     verdict = 'duplicate';
-  } else if (score >= REVIEW_THRESHOLD && hasStrongEvidence) {
+  } else if (hasStrongEvidence && score >= REVIEW_THRESHOLD) {
     verdict = 'review';
   }
 
@@ -250,8 +256,8 @@ export function evaluateDuplicate(
 
 /**
  * Cluster confidence shown in the UI next to "N manbada topildi".
- * More independent sources reporting the same item is stronger evidence than
- * the same channel reposting it, so distinct sources are weighted higher.
+ * Independent sources reporting the same item is stronger evidence than the
+ * same channel reposting it, so distinct sources add a bonus.
  */
 export function clusterConfidence(members: {
   pairScores: number[];
@@ -260,7 +266,8 @@ export function clusterConfidence(members: {
   const { pairScores, distinctSources } = members;
   if (pairScores.length === 0) return 0;
 
-  const average = pairScores.reduce((sum, value) => sum + value, 0) / pairScores.length;
+  const average =
+    pairScores.reduce((sum, value) => sum + value, 0) / pairScores.length;
   const sourceBonus = Math.min(20, Math.max(0, distinctSources - 1) * 10);
   return Math.min(100, Math.round(average * 0.8 + sourceBonus));
 }
