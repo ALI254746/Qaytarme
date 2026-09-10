@@ -171,6 +171,39 @@ jobs:
       - run: npm ci
       - run: npm test -- --runInBand dedupe.util.spec.ts -t "${{ matrix.pattern }}"
 
+  reliability-tests:
+    name: Test source reliability - ${{ matrix.scenario }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - scenario: small-sample
+            pattern: tiny sample
+          - scenario: insufficient-data
+            pattern: too few announcements
+          - scenario: reposter
+            pattern: mostly reposts
+          - scenario: spam
+            pattern: spammy channel
+          - scenario: stale
+            pattern: abandoned channel
+          - scenario: weight
+            pattern: never silences a source
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm test -- --runInBand source-reliability.util.spec.ts -t "${{ matrix.pattern }}"
+
   category-resolution-tests:
     name: Test category resolution
     runs-on: ubuntu-latest
