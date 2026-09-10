@@ -16,6 +16,7 @@ import { AboutModule } from './modules/about/about.module';
 import { TelegramModule } from './modules/telegram/telegram.module';
 import { TranslationModule } from './modules/translation/translation.module';
 import { SourceReliabilityModule } from './modules/source-reliability/source-reliability.module';
+import { GeoIntelligenceModule } from './modules/geo-intelligence/geo-intelligence.module';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { SourceReliabilityModule } from './modules/source-reliability/source-rel
     TelegramModule,
     TranslationModule,
     SourceReliabilityModule,
+    GeoIntelligenceModule,
   ],
   controllers: [AppController],
   providers: [AppService],
