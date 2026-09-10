@@ -204,6 +204,43 @@ jobs:
       - run: npm ci
       - run: npm test -- --runInBand source-reliability.util.spec.ts -t "${{ matrix.pattern }}"
 
+  hotspot-tests:
+    name: Test geo intelligence - ${{ matrix.scenario }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - scenario: dense-cell
+            pattern: marks a dense cell as significant
+          - scenario: sparse-cell
+            pattern: does not call a handful of points a hotspot
+          - scenario: bad-coordinates
+            pattern: ignores incidents without usable coordinates
+          - scenario: missing-time
+            pattern: counts missing timestamps separately
+          - scenario: local-time
+            pattern: shifts UTC timestamps into local hours
+          - scenario: tiny-jump
+            pattern: refuses to turn a tiny jump into a trend
+          - scenario: noise-band
+            pattern: calls a small fluctuation stable
+          - scenario: real-spike
+            pattern: flags a clear rise as significant
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm test -- --runInBand hotspot.util.spec.ts -t "${{ matrix.pattern }}"
+
   category-resolution-tests:
     name: Test category resolution
     runs-on: ubuntu-latest
