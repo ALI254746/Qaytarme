@@ -1,5 +1,5 @@
 
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Ariza } from '../../schemas/ariza.schema';
@@ -7,10 +7,15 @@ import { User } from '../../schemas/user.schema';
 import { MatchesService } from '../matches/matches.service';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { TranslationService } from '../translation/translation.service';
-import { normalizeCategory } from '../../utils/category.util';
+import {
+  buildAnnouncementText,
+  resolveAnnouncementCategory,
+} from '../../utils/announcement-category.util';
 
 @Injectable()
 export class ArizaService {
+  private readonly logger = new Logger(ArizaService.name);
+
   constructor(
     @InjectModel('Ariza') private arizaModel: Model<Ariza>,
     @InjectModel('User') private userModel: Model<User>,
@@ -181,6 +186,24 @@ export class ArizaService {
          imageData = data.image;
       }
 
+      // Resolve the category from the suggested value AND the announcement text.
+      // AI image analysis often answers with the fallback value, so the text is
+      // allowed to correct an unusable or low confidence suggestion.
+      const categoryResolution = resolveAnnouncementCategory(
+        data.category,
+        buildAnnouncementText(data),
+      );
+
+      if (categoryResolution.corrected) {
+        this.logger.warn(
+          `Category corrected from "${categoryResolution.suggestedCategory}" to "${categoryResolution.category}" using announcement text`,
+        );
+      } else if (!categoryResolution.confident) {
+        this.logger.warn(
+          `Category could not be determined for "${data.itemType || data.title || 'unknown item'}", using "${categoryResolution.category}"`,
+        );
+      }
+
       // Transliterate fields
       const newItemData = {
           ...data,
@@ -188,8 +211,7 @@ export class ArizaService {
           itemName: this.transliterateCyrillicToLatin(data.itemName),
           itemDescription: this.transliterateCyrillicToLatin(data.itemDescription),
           fullName: this.transliterateCyrillicToLatin(data.fullName),
-          // Normalize category to ensure it matches one of the 14 valid categories
-          category: normalizeCategory(data.category),
+          category: categoryResolution.category,
       };
 
       // Parse coordinates if string
