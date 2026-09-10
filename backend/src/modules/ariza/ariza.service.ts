@@ -13,11 +13,13 @@ import { User } from '../../schemas/user.schema';
 import { MatchesService } from '../matches/matches.service';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { TranslationService } from '../translation/translation.service';
+import { DedupeService } from './dedupe.service';
 import {
   buildAnnouncementText,
   resolveAnnouncementCategory,
 } from '../../utils/announcement-category.util';
 import { escapeRegex, sanitizeAriza, sanitizeArizaList } from '../../utils/pii.util';
+import { extractCloudinaryPhash } from '../../utils/image-hash.util';
 import { transliterateCyrillicToLatin } from '../../utils/text-normalization.util';
 import {
   DEFAULT_PAGE_SIZE,
@@ -38,6 +40,7 @@ const SERVER_OWNED_FIELDS = [
   'isLikedByCurrentUser',
   'geo',
   'occurredAt',
+  'cluster',
   '_id',
   '__v',
   'createdAt',
@@ -54,6 +57,7 @@ export class ArizaService {
     private matchesService: MatchesService,
     private cloudinaryService: CloudinaryService,
     private translationService: TranslationService,
+    private dedupeService: DedupeService,
   ) {}
 
   private assertObjectId(value: string, label = 'identifikator'): Types.ObjectId {
@@ -228,20 +232,22 @@ export class ArizaService {
   async create(
     userId: string,
     data: CreateArizaDto & Record<string, any>,
-    file?: Express.Multer.File | { url: string },
+    file?: Express.Multer.File | { url: string; phash?: string },
   ) {
     try {
-      let imageData: { url: string; publicId?: string } | null = null;
+      let imageData: { url: string; publicId?: string; phash?: string } | null = null;
 
       if (file) {
         if ('url' in file) {
           // Provided by the trusted Telegram ingestion pipeline.
-          imageData = { url: file.url };
+          imageData = { url: file.url, phash: file.phash };
         } else {
           const result = await this.cloudinaryService.uploadFile(file);
           imageData = {
-            url: result.secure_url,
-            publicId: result.public_id,
+            url: (result as any).secure_url,
+            publicId: (result as any).public_id,
+            // Perceptual hash, used to recognise the same photo in reposts.
+            phash: extractCloudinaryPhash(result as any),
           };
         }
       }
@@ -307,6 +313,14 @@ export class ArizaService {
 
       const savedAriza = await new this.arizaModel(payload).save();
 
+      // Enrichment steps run after the announcement is safely stored, and a
+      // failure in either of them must not fail the request.
+      this.dedupeService
+        .clusterAnnouncement(savedAriza)
+        .catch((error) =>
+          this.logger.error(`Clustering trigger failed: ${error.message}`),
+        );
+
       this.matchesService
         .findAndCreateMatches(savedAriza)
         .catch((error) =>
@@ -329,7 +343,12 @@ export class ArizaService {
     );
     const skip = (page - 1) * limit;
 
-    const filter: any = { moderationStatus: 'approved' };
+    const filter: any = {
+      moderationStatus: 'approved',
+      // Reposts stay in the database as evidence but only the representative
+      // announcement of a cluster is listed.
+      'cluster.isPrimary': { $ne: false },
+    };
 
     if (query.status && query.status !== 'all') filter.status = query.status;
     if (query.category && query.category !== 'all') filter.category = query.category;
@@ -399,6 +418,18 @@ export class ArizaService {
     if (!ariza) throw new NotFoundException("E'lon topilmadi");
 
     return sanitizeAriza(ariza, viewerId);
+  }
+
+  /** Which sources reported this item, and when. Contains no contact data. */
+  async getSourceTimeline(id: string) {
+    this.assertObjectId(id, 'e\u2018lon identifikatori');
+    const cluster = await this.dedupeService.getClusterTimeline(id);
+
+    if (!cluster) {
+      return { clustered: false, memberCount: 1, sourceCount: 1, timeline: [] };
+    }
+
+    return { clustered: true, ...cluster };
   }
 
   async findByUser(userId: string) {
