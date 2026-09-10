@@ -91,6 +91,57 @@ jobs:
       - run: npm ci
       - run: npm test -- --runInBand provenance.util.spec.ts telegram-provenance.util.spec.ts
 
+  privacy-tests:
+    name: Test PII redaction
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm test -- --runInBand pii.util.spec.ts
+
+  geo-tests:
+    name: Test geo and temporal normalization
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm test -- --runInBand geo.util.spec.ts
+
+  category-resolution-tests:
+    name: Test category resolution
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm test -- --runInBand category.util.spec.ts
+
   scoring-tests:
     name: Test weighted scoring
     runs-on: ubuntu-latest
@@ -145,6 +196,8 @@ jobs:
             pattern: matches documents
           - scenario: docs-conflict
             pattern: detects conflicting
+          - scenario: docs-bts
+            pattern: never matches a passport
           - scenario: tech
             pattern: matches technology
           - scenario: wallet
