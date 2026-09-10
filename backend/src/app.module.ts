@@ -15,6 +15,7 @@ import { AdminModule } from './modules/admin/admin.module';
 import { AboutModule } from './modules/about/about.module';
 import { TelegramModule } from './modules/telegram/telegram.module';
 import { TranslationModule } from './modules/translation/translation.module';
+import { SourceReliabilityModule } from './modules/source-reliability/source-reliability.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { TranslationModule } from './modules/translation/translation.module';
     AboutModule,
     TelegramModule,
     TranslationModule,
+    SourceReliabilityModule,
   ],
   controllers: [AppController],
   providers: [AppService],
