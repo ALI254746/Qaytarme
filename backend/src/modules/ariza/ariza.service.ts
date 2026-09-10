@@ -1,5 +1,11 @@
-
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Ariza } from '../../schemas/ariza.schema';
@@ -7,119 +13,196 @@ import { User } from '../../schemas/user.schema';
 import { MatchesService } from '../matches/matches.service';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { TranslationService } from '../translation/translation.service';
-import { normalizeCategory } from '../../utils/category.util';
+import { DedupeService } from './dedupe.service';
+import {
+  buildAnnouncementText,
+  resolveAnnouncementCategory,
+} from '../../utils/announcement-category.util';
+import { escapeRegex, sanitizeAriza, sanitizeArizaList } from '../../utils/pii.util';
+import { extractCloudinaryPhash } from '../../utils/image-hash.util';
+import { transliterateCyrillicToLatin } from '../../utils/text-normalization.util';
+import {
+  DEFAULT_PAGE_SIZE,
+  MAX_PAGE_SIZE,
+  QueryArizaDto,
+} from './dto/query-ariza.dto';
+import { CreateArizaDto } from './dto/create-ariza.dto';
+
+/**
+ * Fields the server owns. A client can never set them, because provenance is
+ * OSINT evidence and moderation/reward state decides who gets points.
+ */
+const SERVER_OWNED_FIELDS = [
+  'matchedUser',
+  'confirmedByFinder',
+  'confirmedByLoser',
+  'likeCount',
+  'isLikedByCurrentUser',
+  'geo',
+  'occurredAt',
+  'cluster',
+  '_id',
+  '__v',
+  'createdAt',
+  'updatedAt',
+] as const;
 
 @Injectable()
 export class ArizaService {
+  private readonly logger = new Logger(ArizaService.name);
+
   constructor(
     @InjectModel('Ariza') private arizaModel: Model<Ariza>,
     @InjectModel('User') private userModel: Model<User>,
     private matchesService: MatchesService,
     private cloudinaryService: CloudinaryService,
     private translationService: TranslationService,
+    private dedupeService: DedupeService,
   ) {}
 
-  async confirmHandover(arizaId: string, userId: string, otherUserId: string) {
+  private assertObjectId(value: string, label = 'identifikator'): Types.ObjectId {
+    if (!value || !Types.ObjectId.isValid(value)) {
+      throw new BadRequestException(`Noto\u2018g\u2018ri ${label}`);
+    }
+    return new Types.ObjectId(value);
+  }
+
+  private async loadOwnedOrMatched(arizaId: string, userId: string) {
+    this.assertObjectId(arizaId, 'e\u2018lon identifikatori');
     const ariza = await this.arizaModel.findById(arizaId);
-    if (!ariza) throw new Error('E\'lon topilmadi');
+    if (!ariza) throw new NotFoundException("E'lon topilmadi");
 
-    // Only allow setting matchedUser once
-    if (!ariza.matchedUser) {
-      // If current user is the owner, matchedUser is otherUserId
-      // If current user is NOT the owner, matchedUser is current user (userId)
-      if (ariza.user.toString() === userId) {
-        ariza.matchedUser = new Types.ObjectId(otherUserId);
-      } else {
-        ariza.matchedUser = new Types.ObjectId(userId);
-      }
-    }
-
-    // Who is the finder?
-    // If it's a "found" item, the owner of ariza is the finder.
-    // If it's a "lost" item, the 'matchedUser' (the person who replied) is the finder.
     const isOwner = ariza.user.toString() === userId;
-    // Finder is: Owner if status is 'found', otherwise the matchedUser (the non-owner who found it)
-    const isFinder = (ariza.status === 'found' && isOwner) || (ariza.status === 'lost' && !isOwner);
-      
-    if (isFinder) {
-      ariza.confirmedByFinder = true;
-      if (!ariza.matchedUser && !isOwner) {
-        ariza.matchedUser = new Types.ObjectId(userId);
-      } else if (!ariza.matchedUser && isOwner) {
-        ariza.matchedUser = new Types.ObjectId(otherUserId);
-      }
+    const isMatched = ariza.matchedUser?.toString() === userId;
+
+    // Before a counterpart is registered only the owner may act; afterwards
+    // both parties may. Without this check any authenticated user could
+    // register themselves as the finder and collect the reward points.
+    if (!isOwner && !isMatched && ariza.matchedUser) {
+      throw new ForbiddenException('Bu e\u2018lon bo\u2018yicha ruxsat yo\u2018q');
     }
 
+    return { ariza, isOwner, isMatched };
+  }
+
+  private resolveCounterpart(
+    ariza: Ariza,
+    userId: string,
+    isOwner: boolean,
+    otherUserId?: string,
+  ): Types.ObjectId {
+    if (ariza.matchedUser) return ariza.matchedUser;
+
+    if (isOwner) {
+      if (!otherUserId) {
+        throw new BadRequestException('Ikkinchi tomon ko\u2018rsatilmagan');
+      }
+      const counterpart = this.assertObjectId(
+        otherUserId,
+        'foydalanuvchi identifikatori',
+      );
+      if (counterpart.toString() === userId) {
+        throw new BadRequestException(
+          'Ikkinchi tomon o\u2018zingiz bo\u2018lishi mumkin emas',
+        );
+      }
+      return counterpart;
+    }
+
+    // A non-owner may only register themselves, never a third party.
+    return new Types.ObjectId(userId);
+  }
+
+  async confirmHandover(arizaId: string, userId: string, otherUserId: string) {
+    const { ariza, isOwner } = await this.loadOwnedOrMatched(arizaId, userId);
+
+    if (!ariza.matchedUser) {
+      ariza.matchedUser = this.resolveCounterpart(ariza, userId, isOwner, otherUserId);
+    }
+
+    // If it's a "found" item, the owner of the announcement is the finder.
+    // If it's a "lost" item, the matched user is the finder.
+    const isFinder =
+      (ariza.status === 'found' && isOwner) || (ariza.status === 'lost' && !isOwner);
+
+    if (!isFinder) {
+      throw new ForbiddenException(
+        'Topshirishni faqat buyumni topgan tomon tasdiqlaydi',
+      );
+    }
+
+    ariza.confirmedByFinder = true;
     await ariza.save();
     return this.checkAndAwardPoints(ariza);
   }
 
   async confirmReceipt(arizaId: string, userId: string, otherUserId: string) {
-    const ariza = await this.arizaModel.findById(arizaId);
-    if (!ariza) throw new Error('E\'lon topilmadi');
+    const { ariza, isOwner } = await this.loadOwnedOrMatched(arizaId, userId);
 
-    const isOwner = ariza.user.toString() === userId;
-    // Loser is: Owner if status is 'lost', otherwise the matchedUser (the person who lost it and someone found it)
-    const isLoser = (ariza.status === 'lost' && isOwner) || (ariza.status === 'found' && !isOwner);
-
-    if (isLoser) {
-      ariza.confirmedByLoser = true;
-      if (!ariza.matchedUser && !isOwner) {
-        ariza.matchedUser = new Types.ObjectId(userId);
-      } else if (!ariza.matchedUser && isOwner) {
-        ariza.matchedUser = new Types.ObjectId(otherUserId);
-      }
+    if (!ariza.matchedUser) {
+      ariza.matchedUser = this.resolveCounterpart(ariza, userId, isOwner, otherUserId);
     }
 
+    const isLoser =
+      (ariza.status === 'lost' && isOwner) || (ariza.status === 'found' && !isOwner);
+
+    if (!isLoser) {
+      throw new ForbiddenException('Qabul qilishni faqat buyum egasi tasdiqlaydi');
+    }
+
+    ariza.confirmedByLoser = true;
     await ariza.save();
     return this.checkAndAwardPoints(ariza);
   }
 
   async cancelDeal(arizaId: string, userId: string) {
-    const ariza = await this.arizaModel.findById(arizaId);
-    if (!ariza) throw new Error('E\'lon topilmadi');
+    const { ariza } = await this.loadOwnedOrMatched(arizaId, userId);
 
-    // Reset deal flags if the user is involved
-    const isOwner = ariza.user.toString() === userId;
-    const isMatched = ariza.matchedUser && ariza.matchedUser.toString() === userId;
-
-    if (isOwner || isMatched) {
-        ariza.confirmedByFinder = false;
-        ariza.confirmedByLoser = false;
-        ariza.matchedUser = null as any; // Unlink the matched user so it's open again
-        
-        // If it was somehow returned, revert to approved
-        if (ariza.moderationStatus === 'returned') {
-            ariza.moderationStatus = 'approved';
-        }
+    if (ariza.moderationStatus === 'returned') {
+      throw new BadRequestException(
+        'Yakunlangan kelishuvni bekor qilish mumkin emas',
+      );
     }
-    
+
+    ariza.confirmedByFinder = false;
+    ariza.confirmedByLoser = false;
+    ariza.matchedUser = null as any;
+
     await ariza.save();
     return ariza;
   }
 
   private async checkAndAwardPoints(ariza: any) {
-    if (ariza.confirmedByFinder && ariza.confirmedByLoser && ariza.moderationStatus !== 'returned') {
+    if (
+      ariza.confirmedByFinder &&
+      ariza.confirmedByLoser &&
+      ariza.moderationStatus !== 'returned'
+    ) {
       ariza.moderationStatus = 'returned';
       await ariza.save();
 
-      // Check for a related item (the other side of the match)
+      // Close the other side of the match as well.
       if (ariza.matchedUser) {
-         const relatedItemId = await this.matchesService.findRelatedItemId(ariza._id.toString(), ariza.matchedUser.toString());
-         if (relatedItemId) {
-            await this.arizaModel.findByIdAndUpdate(relatedItemId, { moderationStatus: 'returned' });
-         }
+        const relatedItemId = await this.matchesService.findRelatedItemId(
+          ariza._id.toString(),
+          ariza.matchedUser.toString(),
+        );
+        if (relatedItemId) {
+          await this.arizaModel.findByIdAndUpdate(relatedItemId, {
+            moderationStatus: 'returned',
+          });
+        }
       }
 
-      // Find the finder's ID to award points
       const finderId = ariza.status === 'found' ? ariza.user : ariza.matchedUser;
-      
-      if (finderId) {
-        const updatedUser = await this.userModel.findByIdAndUpdate(finderId, {
-          $inc: { points: 100 }
-        }, { new: true });
 
-        // Badge update logic
+      if (finderId) {
+        const updatedUser = await this.userModel.findByIdAndUpdate(
+          finderId,
+          { $inc: { points: 100 } },
+          { new: true },
+        );
+
         if (updatedUser) {
           const newBadges: string[] = [];
           if (updatedUser.points >= 100) newBadges.push('Yaxshi odam');
@@ -128,7 +211,7 @@ export class ArizaService {
 
           if (newBadges.length > 0) {
             await this.userModel.findByIdAndUpdate(finderId, {
-              $addToSet: { badges: { $each: newBadges } }
+              $addToSet: { badges: { $each: newBadges } },
             });
           }
         }
@@ -137,175 +220,251 @@ export class ArizaService {
     return ariza;
   }
 
-  // --- Transliteration Helper ---
-  // --- Transliteration Helper ---
-  private transliterateCyrillicToLatin(text: string): string {
-    if (!text) return text;
-    const map = {
-      'А': 'A', 'Б': 'B', 'В': 'V', 'Г': 'G', 'Д': 'D', 'Е': 'E', 'Ё': 'Yo',
-      'Ж': 'J', 'З': 'Z', 'И': 'I', 'Й': 'Y', 'К': 'K', 'Л': 'L', 'М': 'M',
-      'Н': 'N', 'О': 'O', 'П': 'P', 'Р': 'R', 'С': 'S', 'Т': 'T', 'У': 'U',
-      'Ф': 'F', 'Х': 'X', 'Ц': 'Ts', 'Ч': 'Ch', 'Ш': 'Sh', 'Щ': 'Sh', 'Ъ': '',
-      'Ы': 'I', 'Ь': '', 'Э': 'E', 'Ю': 'Yu', 'Я': 'Ya', 'Ў': 'O\'', 'Қ': 'Q',
-      'Ғ': 'G\'', 'Ҳ': 'H',
-      'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'yo',
-      'ж': 'j', 'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm',
-      'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u',
-      'ф': 'f', 'х': 'x', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'sh', 'ъ': '',
-      'ы': 'i', 'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya', 'ў': 'o\'', 'қ': 'q',
-      'ғ': 'g\'', 'ҳ': 'h'
-    };
-
-    return text.split('').map(char => map[char] || char).join('');
+  /**
+   * Cyrillic input is transliterated so search and matching work across both
+   * scripts. Case is preserved because these values are displayed as is.
+   */
+  private toLatin(text?: string | null): string | undefined {
+    if (!text) return undefined;
+    return transliterateCyrillicToLatin(text);
   }
 
-  async create(userId: string, data: any, file?: Express.Multer.File | { url: string }) {
+  async create(
+    userId: string,
+    data: CreateArizaDto & Record<string, any>,
+    file?: Express.Multer.File | { url: string; phash?: string },
+  ) {
     try {
-      let imageData: { url: string; publicId?: string } | null = null;
-      
-      // Handle Image
+      let imageData: { url: string; publicId?: string; phash?: string } | null = null;
+
       if (file) {
         if ('url' in file) {
-            // It's a URL object (from Telegram)
-            imageData = { url: file.url };
+          // Provided by the trusted Telegram ingestion pipeline.
+          imageData = { url: file.url, phash: file.phash };
         } else {
-            // It's a Multer file (from Controller)
-            const result = await this.cloudinaryService.uploadFile(file);
-            imageData = {
-                url: result.secure_url,
-                publicId: result.public_id
-            };
+          const result = await this.cloudinaryService.uploadFile(file);
+          imageData = {
+            url: (result as any).secure_url,
+            publicId: (result as any).public_id,
+            // Perceptual hash, used to recognise the same photo in reposts.
+            phash: extractCloudinaryPhash(result as any),
+          };
         }
-      } else if (data.image) {
-         // Fallback if image data is passed directly in body
-         imageData = data.image;
       }
 
-      // Transliterate fields
-      const newItemData = {
-          ...data,
-          itemType: this.transliterateCyrillicToLatin(data.itemType),
-          itemName: this.transliterateCyrillicToLatin(data.itemName),
-          itemDescription: this.transliterateCyrillicToLatin(data.itemDescription),
-          fullName: this.transliterateCyrillicToLatin(data.fullName),
-          // Normalize category to ensure it matches one of the 14 valid categories
-          category: normalizeCategory(data.category),
-      };
+      // Resolve the category from the suggested value AND the announcement text.
+      // AI image analysis often answers with the fallback value, so the text is
+      // allowed to correct an unusable or low confidence suggestion.
+      const categoryResolution = resolveAnnouncementCategory(
+        data.category,
+        buildAnnouncementText(data),
+      );
 
-      // Parse coordinates if string
-      let coordinates = newItemData.coordinates;
+      if (categoryResolution.corrected) {
+        this.logger.warn(
+          `Category corrected from "${categoryResolution.suggestedCategory}" to "${categoryResolution.category}" using announcement text`,
+        );
+      } else if (!categoryResolution.confident) {
+        this.logger.warn(
+          `Category could not be determined for "${data.itemType || 'unknown item'}", using "${categoryResolution.category}"`,
+        );
+      }
+
+      let coordinates: any = data.coordinates;
       if (typeof coordinates === 'string') {
         try {
           coordinates = JSON.parse(coordinates);
-        } catch (e) {
-          coordinates = null;
+        } catch {
+          coordinates = undefined;
         }
       }
 
-      const newAriza = new this.arizaModel({
-        ...newItemData,
+      // Explicit field list instead of spreading the request body, so server
+      // owned fields (provenance, moderationStatus, ...) stay server owned.
+      const payload: Record<string, unknown> = {
+        user: this.assertObjectId(userId, 'foydalanuvchi identifikatori'),
+        status: data.status,
+        fullName: this.toLatin(data.fullName),
+        phone: data.phone,
+        telegram: data.telegram,
+        email: data.email,
+        itemType: this.toLatin(data.itemType),
+        itemName: this.toLatin(data.itemName),
+        itemDescription: this.toLatin(data.itemDescription),
+        category: categoryResolution.category,
+        date: data.date,
+        location: data.location,
+        region: data.region,
+        district: data.district,
         coordinates,
         image: imageData,
         moderationStatus: 'approved',
-        user: new Types.ObjectId(userId),
-      });
+      };
 
-      const savedAriza = await newAriza.save();
-      
-      // AI Matching
-      this.matchesService.findAndCreateMatches(savedAriza).catch(err => console.error('Matching trigger failed:', err));
+      for (const field of SERVER_OWNED_FIELDS) {
+        delete (payload as any)[field];
+      }
+
+      // Provenance is only accepted from trusted internal callers (Telegram
+      // ingestion, admin import). An HTTP request body can never set it.
+      if (data.provenance && data.trustedSource === true) {
+        payload.provenance = data.provenance;
+      }
+
+      const savedAriza = await new this.arizaModel(payload).save();
+
+      // Enrichment steps run after the announcement is safely stored, and a
+      // failure in either of them must not fail the request.
+      this.dedupeService
+        .clusterAnnouncement(savedAriza)
+        .catch((error) =>
+          this.logger.error(`Clustering trigger failed: ${error.message}`),
+        );
+
+      this.matchesService
+        .findAndCreateMatches(savedAriza)
+        .catch((error) =>
+          this.logger.error(`Matching trigger failed: ${error.message}`),
+        );
 
       return savedAriza;
-    } catch (error) {
-      console.error('Error creating Ariza:', error);
-      throw new InternalServerErrorException(error.message);
+    } catch (error: any) {
+      if (error?.status && error.status < 500) throw error;
+      this.logger.error(`Error creating Ariza: ${error.message}`, error.stack);
+      throw new InternalServerErrorException("E'lonni saqlashda xatolik yuz berdi");
     }
   }
 
-  async findAll(query: any) {
-    const { status, category, search, page = 1, limit = 10 } = query;
-    console.log('ArizaService.findAll Query:', query);
-    
+  async findAll(query: QueryArizaDto, viewerId?: string | null) {
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.min(
+      MAX_PAGE_SIZE,
+      Math.max(1, Number(query.limit) || DEFAULT_PAGE_SIZE),
+    );
     const skip = (page - 1) * limit;
 
-    const filter: any = { moderationStatus: 'approved' };
-    
-    if (status && status !== 'all') {
-      filter.status = status;
-    }
-    
-    if (category && category !== 'all') {
-      filter.category = category;
-    }
+    const filter: any = {
+      moderationStatus: 'approved',
+      // Reposts stay in the database as evidence but only the representative
+      // announcement of a cluster is listed.
+      'cluster.isPrimary': { $ne: false },
+    };
 
-    if (search) {
+    if (query.status && query.status !== 'all') filter.status = query.status;
+    if (query.category && query.category !== 'all') filter.category = query.category;
+
+    if (query.search) {
+      // Escaped: user input must never be interpreted as a regular expression.
+      const pattern = new RegExp(escapeRegex(query.search.trim()), 'i');
       filter.$or = [
-        { itemType: { $regex: search, $options: 'i' } },
-        { itemName: { $regex: search, $options: 'i' } },
-        { itemDescription: { $regex: search, $options: 'i' } },
-        { fullName: { $regex: search, $options: 'i' } }
+        { itemType: pattern },
+        { itemName: pattern },
+        { itemDescription: pattern },
+        { location: pattern },
       ];
     }
-    
-    console.log('ArizaService.findAll Filter:', JSON.stringify(filter, null, 2));
 
-    const total = await this.arizaModel.countDocuments(filter);
-    const arizalar = await this.arizaModel.find(filter)
-      .populate('user', 'name email avatar')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .exec();
+    const [total, arizalar] = await Promise.all([
+      this.arizaModel.countDocuments(filter),
+      this.arizaModel
+        .find(filter)
+        .populate('user', 'name avatar')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean()
+        .exec(),
+    ]);
 
-    // Translate if targetLang is provided
     const targetLang = query.lang;
-    const translatedArizalar = await Promise.all(arizalar.map(async (ariza) => {
-        const item = ariza.toObject();
-        if (targetLang && targetLang !== 'uz') { // Default/Source likely Uzbek
-             item.itemType = await this.translationService.translate(item.itemType, targetLang);
-             item.itemName = await this.translationService.translate(item.itemName, targetLang);
-             item.itemDescription = await this.translationService.translate(item.itemDescription, targetLang);
+    const prepared = await Promise.all(
+      arizalar.map(async (item: any) => {
+        if (targetLang && targetLang !== 'uz') {
+          item.itemType = await this.translationService.translate(
+            item.itemType,
+            targetLang,
+          );
+          item.itemName = await this.translationService.translate(
+            item.itemName,
+            targetLang,
+          );
+          item.itemDescription = await this.translationService.translate(
+            item.itemDescription,
+            targetLang,
+          );
         }
         return item;
-    }));
+      }),
+    );
 
     return {
-      arizalar: translatedArizalar,
+      arizalar: sanitizeArizaList(prepared, viewerId),
       total,
-      hasMore: total > skip + translatedArizalar.length,
+      page,
+      limit,
+      hasMore: total > skip + prepared.length,
     };
   }
 
+  async findById(id: string, viewerId?: string | null) {
+    this.assertObjectId(id, 'e\u2018lon identifikatori');
 
+    const ariza = await this.arizaModel
+      .findById(id)
+      .populate('user', 'name avatar')
+      .lean()
+      .exec();
 
-  async findById(id: string) {
-    return this.arizaModel.findById(id).populate('user', 'name email avatar').exec();
+    if (!ariza) throw new NotFoundException("E'lon topilmadi");
+
+    return sanitizeAriza(ariza, viewerId);
+  }
+
+  /** Which sources reported this item, and when. Contains no contact data. */
+  async getSourceTimeline(id: string) {
+    this.assertObjectId(id, 'e\u2018lon identifikatori');
+    const cluster = await this.dedupeService.getClusterTimeline(id);
+
+    if (!cluster) {
+      return { clustered: false, memberCount: 1, sourceCount: 1, timeline: [] };
+    }
+
+    return { clustered: true, ...cluster };
   }
 
   async findByUser(userId: string) {
-    return this.arizaModel.find({ 
-      $or: [
-        { user: new Types.ObjectId(userId) },
-        { matchedUser: new Types.ObjectId(userId) }
-      ]
-    }).sort({ createdAt: -1 }).exec();
+    const objectId = this.assertObjectId(userId, 'foydalanuvchi identifikatori');
+
+    const arizalar = await this.arizaModel
+      .find({ $or: [{ user: objectId }, { matchedUser: objectId }] })
+      .sort({ createdAt: -1 })
+      .lean()
+      .exec();
+
+    return sanitizeArizaList(arizalar, userId);
   }
 
   async remove(id: string, userId: string) {
-    const ariza = await this.arizaModel.findOne({ _id: new Types.ObjectId(id), user: new Types.ObjectId(userId) });
-    
-    if (!ariza) {
-      throw new Error("Ariza topilmadi");
+    this.assertObjectId(id, 'e\u2018lon identifikatori');
+
+    const ariza = await this.arizaModel.findById(id);
+    if (!ariza) throw new NotFoundException("E'lon topilmadi");
+
+    if (ariza.user.toString() !== userId) {
+      throw new ForbiddenException("Faqat o'z e'loningizni o'chirishingiz mumkin");
     }
 
     if (ariza.moderationStatus === 'returned') {
-      throw new Error("Qaytarilgan e'lonni o'chirish mumkin emas");
+      throw new BadRequestException("Qaytarilgan e'lonni o'chirish mumkin emas");
     }
 
     return this.arizaModel.findByIdAndDelete(id).exec();
   }
 
   async updateModeration(id: string, status: string) {
-    return this.arizaModel.findByIdAndUpdate(id, { moderationStatus: status }, { new: true }).exec();
+    this.assertObjectId(id, 'e\u2018lon identifikatori');
+    return this.arizaModel
+      .findByIdAndUpdate(id, { moderationStatus: status }, { new: true })
+      .exec();
   }
 }

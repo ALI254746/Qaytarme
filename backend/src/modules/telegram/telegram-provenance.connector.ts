@@ -53,7 +53,13 @@ export class TelegramProvenanceConnector implements OnModuleInit {
         },
       );
 
-      return createAriza(userId, { ...data, provenance }, file);
+      // `trustedSource` tells ArizaService this provenance was produced by the
+      // ingestion pipeline itself and not copied from a request body.
+      return createAriza(
+        userId,
+        { ...data, provenance, trustedSource: true },
+        file,
+      );
     };
   }
 }

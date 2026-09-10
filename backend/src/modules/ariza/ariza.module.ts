@@ -2,6 +2,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ArizaService } from './ariza.service';
+import { DedupeService } from './dedupe.service';
 import { ArizaController } from './ariza.controller';
 import { Ariza, ArizaSchema } from '../../schemas/ariza.schema';
 import { User, UserSchema } from '../../schemas/user.schema';
@@ -17,8 +18,8 @@ import { CloudinaryModule } from '../cloudinary/cloudinary.module';
     MatchesModule,
     CloudinaryModule,
   ],
-  providers: [ArizaService],
+  providers: [ArizaService, DedupeService],
   controllers: [ArizaController],
-  exports: [ArizaService],
+  exports: [ArizaService, DedupeService],
 })
 export class ArizaModule {}
