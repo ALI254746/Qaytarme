@@ -18,7 +18,7 @@ import {
   resolveAnnouncementCategory,
 } from '../../utils/announcement-category.util';
 import { escapeRegex, sanitizeAriza, sanitizeArizaList } from '../../utils/pii.util';
-import { normalizeUzbekText } from '../../utils/text-normalization.util';
+import { transliterateCyrillicToLatin } from '../../utils/text-normalization.util';
 import {
   DEFAULT_PAGE_SIZE,
   MAX_PAGE_SIZE,
@@ -31,9 +31,6 @@ import { CreateArizaDto } from './dto/create-ariza.dto';
  * OSINT evidence and moderation/reward state decides who gets points.
  */
 const SERVER_OWNED_FIELDS = [
-  'user',
-  'provenance',
-  'moderationStatus',
   'matchedUser',
   'confirmedByFinder',
   'confirmedByLoser',
@@ -60,7 +57,7 @@ export class ArizaService {
   ) {}
 
   private assertObjectId(value: string, label = 'identifikator'): Types.ObjectId {
-    if (!Types.ObjectId.isValid(value)) {
+    if (!value || !Types.ObjectId.isValid(value)) {
       throw new BadRequestException(`Noto\u2018g\u2018ri ${label}`);
     }
     return new Types.ObjectId(value);
@@ -89,16 +86,21 @@ export class ArizaService {
     userId: string,
     isOwner: boolean,
     otherUserId?: string,
-  ): Types.ObjectId | null {
+  ): Types.ObjectId {
     if (ariza.matchedUser) return ariza.matchedUser;
 
     if (isOwner) {
       if (!otherUserId) {
         throw new BadRequestException('Ikkinchi tomon ko\u2018rsatilmagan');
       }
-      const counterpart = this.assertObjectId(otherUserId, 'foydalanuvchi identifikatori');
+      const counterpart = this.assertObjectId(
+        otherUserId,
+        'foydalanuvchi identifikatori',
+      );
       if (counterpart.toString() === userId) {
-        throw new BadRequestException('Ikkinchi tomon o\u2018zingiz bo\u2018lishi mumkin emas');
+        throw new BadRequestException(
+          'Ikkinchi tomon o\u2018zingiz bo\u2018lishi mumkin emas',
+        );
       }
       return counterpart;
     }
@@ -114,9 +116,8 @@ export class ArizaService {
       ariza.matchedUser = this.resolveCounterpart(ariza, userId, isOwner, otherUserId);
     }
 
-    // Who is the finder?
-    // If it's a "found" item, the owner of ariza is the finder.
-    // If it's a "lost" item, the 'matchedUser' (the person who replied) is the finder.
+    // If it's a "found" item, the owner of the announcement is the finder.
+    // If it's a "lost" item, the matched user is the finder.
     const isFinder =
       (ariza.status === 'found' && isOwner) || (ariza.status === 'lost' && !isOwner);
 
@@ -142,9 +143,7 @@ export class ArizaService {
       (ariza.status === 'lost' && isOwner) || (ariza.status === 'found' && !isOwner);
 
     if (!isLoser) {
-      throw new ForbiddenException(
-        'Qabul qilishni faqat buyum egasi tasdiqlaydi',
-      );
+      throw new ForbiddenException('Qabul qilishni faqat buyum egasi tasdiqlaydi');
     }
 
     ariza.confirmedByLoser = true;
@@ -157,7 +156,7 @@ export class ArizaService {
 
     if (ariza.moderationStatus === 'returned') {
       throw new BadRequestException(
-        "Yakunlangan kelishuvni bekor qilish mumkin emas",
+        'Yakunlangan kelishuvni bekor qilish mumkin emas',
       );
     }
 
@@ -170,27 +169,36 @@ export class ArizaService {
   }
 
   private async checkAndAwardPoints(ariza: any) {
-    if (ariza.confirmedByFinder && ariza.confirmedByLoser && ariza.moderationStatus !== 'returned') {
+    if (
+      ariza.confirmedByFinder &&
+      ariza.confirmedByLoser &&
+      ariza.moderationStatus !== 'returned'
+    ) {
       ariza.moderationStatus = 'returned';
       await ariza.save();
 
-      // Check for a related item (the other side of the match)
+      // Close the other side of the match as well.
       if (ariza.matchedUser) {
-         const relatedItemId = await this.matchesService.findRelatedItemId(ariza._id.toString(), ariza.matchedUser.toString());
-         if (relatedItemId) {
-            await this.arizaModel.findByIdAndUpdate(relatedItemId, { moderationStatus: 'returned' });
-         }
+        const relatedItemId = await this.matchesService.findRelatedItemId(
+          ariza._id.toString(),
+          ariza.matchedUser.toString(),
+        );
+        if (relatedItemId) {
+          await this.arizaModel.findByIdAndUpdate(relatedItemId, {
+            moderationStatus: 'returned',
+          });
+        }
       }
 
-      // Find the finder's ID to award points
       const finderId = ariza.status === 'found' ? ariza.user : ariza.matchedUser;
 
       if (finderId) {
-        const updatedUser = await this.userModel.findByIdAndUpdate(finderId, {
-          $inc: { points: 100 }
-        }, { new: true });
+        const updatedUser = await this.userModel.findByIdAndUpdate(
+          finderId,
+          { $inc: { points: 100 } },
+          { new: true },
+        );
 
-        // Badge update logic
         if (updatedUser) {
           const newBadges: string[] = [];
           if (updatedUser.points >= 100) newBadges.push('Yaxshi odam');
@@ -199,7 +207,7 @@ export class ArizaService {
 
           if (newBadges.length > 0) {
             await this.userModel.findByIdAndUpdate(finderId, {
-              $addToSet: { badges: { $each: newBadges } }
+              $addToSet: { badges: { $each: newBadges } },
             });
           }
         }
@@ -210,11 +218,11 @@ export class ArizaService {
 
   /**
    * Cyrillic input is transliterated so search and matching work across both
-   * scripts. Shared with the matching pipeline through the normalisation util.
+   * scripts. Case is preserved because these values are displayed as is.
    */
   private toLatin(text?: string | null): string | undefined {
-    if (!text) return text ?? undefined;
-    return normalizeUzbekText(text, { preserveCase: true });
+    if (!text) return undefined;
+    return transliterateCyrillicToLatin(text);
   }
 
   async create(
@@ -265,7 +273,7 @@ export class ArizaService {
         }
       }
 
-      // Explicit field list instead of spreading the request body: server
+      // Explicit field list instead of spreading the request body, so server
       // owned fields (provenance, moderationStatus, ...) stay server owned.
       const payload: Record<string, unknown> = {
         user: this.assertObjectId(userId, 'foydalanuvchi identifikatori'),
@@ -287,15 +295,14 @@ export class ArizaService {
         moderationStatus: 'approved',
       };
 
-      // Trusted internal callers (Telegram ingestion, admin) may attach
-      // provenance; it is never read from an HTTP request body.
-      if (data.provenance && data.__trustedSource === true) {
-        payload.provenance = data.provenance;
+      for (const field of SERVER_OWNED_FIELDS) {
+        delete (payload as any)[field];
       }
 
-      for (const field of SERVER_OWNED_FIELDS) {
-        if (field === 'user' || field === 'moderationStatus' || field === 'provenance') continue;
-        delete (payload as any)[field];
+      // Provenance is only accepted from trusted internal callers (Telegram
+      // ingestion, admin import). An HTTP request body can never set it.
+      if (data.provenance && data.trustedSource === true) {
+        payload.provenance = data.provenance;
       }
 
       const savedAriza = await new this.arizaModel(payload).save();
@@ -354,8 +361,14 @@ export class ArizaService {
     const prepared = await Promise.all(
       arizalar.map(async (item: any) => {
         if (targetLang && targetLang !== 'uz') {
-          item.itemType = await this.translationService.translate(item.itemType, targetLang);
-          item.itemName = await this.translationService.translate(item.itemName, targetLang);
+          item.itemType = await this.translationService.translate(
+            item.itemType,
+            targetLang,
+          );
+          item.itemName = await this.translationService.translate(
+            item.itemName,
+            targetLang,
+          );
           item.itemDescription = await this.translationService.translate(
             item.itemDescription,
             targetLang,
