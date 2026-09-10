@@ -125,6 +125,52 @@ jobs:
       - run: npm ci
       - run: npm test -- --runInBand geo.util.spec.ts
 
+  fingerprint-tests:
+    name: Test text and image fingerprints
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm test -- --runInBand simhash.util.spec.ts image-hash.util.spec.ts
+
+  dedupe-tests:
+    name: Test repost clustering - ${{ matrix.scenario }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - scenario: repost
+            pattern: clusters a rewritten repost
+          - scenario: lost-vs-found
+            pattern: never merges a lost post
+          - scenario: different-photo
+            pattern: photos are clearly different
+          - scenario: weak-evidence
+            pattern: time and place alone
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm test -- --runInBand dedupe.util.spec.ts -t "${{ matrix.pattern }}"
+
   category-resolution-tests:
     name: Test category resolution
     runs-on: ubuntu-latest
