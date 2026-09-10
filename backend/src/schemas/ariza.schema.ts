@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Types } from 'mongoose';
+import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import { buildProvenance } from '../utils/provenance.util';
 import { parseOccurredAt, toGeoPoint } from '../utils/geo.util';
 import { simhash } from '../utils/simhash.util';
@@ -118,6 +118,22 @@ export class ClusterInfo {
 
 const ClusterInfoSchema = SchemaFactory.createForClass(ClusterInfo);
 
+const GeoPointSchema = new MongooseSchema<GeoPoint>(
+  {
+    type: {
+      type: String,
+      enum: ['Point'],
+      default: 'Point',
+      required: true,
+    },
+    coordinates: {
+      type: [Number],
+      required: true,
+    },
+  },
+  { _id: false },
+);
+
 @Schema({ timestamps: true })
 export class Ariza extends Document {
   createdAt: Date;
@@ -201,13 +217,7 @@ export class Ariza extends Document {
    * GeoJSON mirror of `coordinates`, kept in sync automatically.
    * Required for $near / $geoWithin queries and hotspot aggregation.
    */
-  @Prop({
-    type: {
-      type: { type: String, enum: ['Point'], default: 'Point' },
-      coordinates: { type: [Number] },
-    },
-    default: null,
-  })
+  @Prop({ type: GeoPointSchema, default: null })
   geo: GeoPoint | null;
 
   @Prop()
