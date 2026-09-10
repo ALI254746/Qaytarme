@@ -54,6 +54,15 @@ export class ArizaController {
     return this.arizaService.findByUser(req.user.id);
   }
 
+  /**
+   * Declared before the generic ':id' route so the more specific path wins.
+   */
+  @Get(':id/sources')
+  @RateLimit({ limit: 120, windowMs: 60_000 })
+  async findSources(@Param('id') id: string) {
+    return this.arizaService.getSourceTimeline(id);
+  }
+
   @Get(':id')
   @RateLimit({ limit: 120, windowMs: 60_000 })
   async findOne(@Param('id') id: string, @Req() req: any) {
