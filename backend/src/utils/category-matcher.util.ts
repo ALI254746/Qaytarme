@@ -35,6 +35,43 @@ const VEHICLE_BRANDS = [
   'mercedes', 'bmw', 'audi', 'lada', 'nexia', 'cobalt', 'gentra', 'damas',
 ];
 
+/**
+ * Document type patterns are evaluated in order, so the most specific
+ * expressions must come first. "Texnik pasport" (BTS) contains the word
+ * "pasport", therefore vehicle documents are detected before the passport
+ * pattern can claim the text.
+ */
+const DOCUMENT_TYPES: ReadonlyArray<readonly [string, string, RegExp]> = [
+  ['vehicle-registration', 'Texnik pasport (BTS)',
+    /\b(bts|texpasport|tex pasport|texnik pasport|texnik passport|avtotexpasport|avto texpasport|transport vositasi guvohnomasi)\b/],
+  ['vehicle-plate', 'Avtomobil raqami',
+    /\b(avtomobil raqami|davlat raqami|raqam belgisi|nomer belgisi)\b/],
+  ['driver-license', 'Haydovchilik guvohnomasi',
+    /\b(prava|haydovchilik guvohnomasi|haydovchilik guvohnoma)\b/],
+  ['student-id', 'Talaba guvohnomasi',
+    /\b(talaba guvohnomasi|talabalik guvohnomasi|student id|zachyotka|baholash daftarchasi)\b/],
+  ['military-id', 'Harbiy bilet',
+    /\b(harbiy bilet|harbiy guvohnoma|voenniy bilet)\b/],
+  ['insurance', 'Sug‘urta polisi',
+    /\b(polis|polisi|sugurta|sug'urta|straxovka)\b/],
+  ['tax-id', 'STIR / INN',
+    /\b(stir|inn|soliq guvohnomasi)\b/],
+  ['work-book', 'Mehnat daftarchasi',
+    /\b(mehnat daftarchasi|mehnat kitobchasi)\b/],
+  ['medical', 'Tibbiy hujjat',
+    /\b(tibbiy daftarcha|tibbiy karta|sanitariya daftarchasi|retsept)\b/],
+  ['bank-book', 'Bank hujjati',
+    /\b(plastik shartnomasi|bank shartnomasi|hisob raqami guvohnomasi)\b/],
+  ['birth-certificate', 'Tug‘ilganlik guvohnomasi',
+    /\b(metrika|tugilganlik guvohnomasi|tug'ilganlik guvohnomasi)\b/],
+  ['diploma', 'Diplom yoki sertifikat',
+    /\b(diplom|diplomi|sertifikat|attestat)\b/],
+  ['id-card', 'ID karta',
+    /\b(id karta|id card|identifikatsiya karta|identifikatsiya)\b/],
+  ['passport', 'Pasport',
+    /\b(pasport|passport|biometrik pasport|xorijga chiqish pasporti)\b/],
+];
+
 function itemText(item: MatchableItem): string {
   return normalizeUzbekText(
     [item.itemType, item.itemName, item.itemDescription]
@@ -55,15 +92,17 @@ function extractLastFour(text: string): string | undefined {
   return digits?.slice(-4);
 }
 
-function extractDocumentType(text: string): string | undefined {
-  const types: Array<[string, RegExp]> = [
-    ['passport', /\b(pasport|passport)\b/],
-    ['id-card', /\b(id karta|id card|identifikatsiya)\b/],
-    ['driver-license', /\b(prava|haydovchilik guvohnomasi)\b/],
-    ['birth-certificate', /\b(metrika|tugilganlik guvohnomasi)\b/],
-    ['diploma', /\b(diplom|sertifikat)\b/],
-  ];
-  return types.find(([, pattern]) => pattern.test(text))?.[0];
+export function extractDocumentType(text: string): string | undefined {
+  return DOCUMENT_TYPES.find(([, , pattern]) => pattern.test(text))?.[0];
+}
+
+export function describeDocumentType(type: string | undefined): string | undefined {
+  return DOCUMENT_TYPES.find(([key]) => key === type)?.[1];
+}
+
+/** Uzbek documents use a two letter series such as AA, AB or AD before the number. */
+function extractDocumentSeries(text: string): string | undefined {
+  return text.match(/\b([a-z]{2})\s?\d{6,9}\b/)?.[1];
 }
 
 function extractTechModel(text: string): string | undefined {
@@ -117,8 +156,28 @@ function matchDocs(left: MatchableItem, right: MatchableItem): CategoryMatchResu
   const signals: CategorySignal[] = [];
   const conflicts: string[] = [];
 
-  addComparison(signals, conflicts, 'documentType', 'Hujjat turi',
-    extractDocumentType(leftText), extractDocumentType(rightText), 40, { conflict: true });
+  const leftType = extractDocumentType(leftText);
+  const rightType = extractDocumentType(rightText);
+
+  if (!leftType || !rightType) {
+    // Documents are sensitive: never rely on free text similarity when the
+    // document type of either announcement is unknown.
+    conflicts.push('Hujjat turi aniqlanmadi');
+  } else if (leftType !== rightType) {
+    conflicts.push('Hujjat turi mos emas');
+  } else {
+    signals.push({
+      key: 'documentType',
+      label: 'Hujjat turi',
+      score: 40,
+      maxScore: 40,
+      evidence: describeDocumentType(leftType) ?? leftType,
+    });
+  }
+
+  addComparison(signals, conflicts, 'series', 'Hujjat seriyasi',
+    extractDocumentSeries(leftText), extractDocumentSeries(rightText), 0,
+    { conflict: true });
   addComparison(signals, conflicts, 'lastFour', 'Raqamning oxirgi 4 xonasi',
     extractLastFour(leftText), extractLastFour(rightText), 35, { redact: true, conflict: true });
 
