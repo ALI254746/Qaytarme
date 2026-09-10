@@ -23,6 +23,47 @@ describe('Category-specific matchers', () => {
     expect(result.conflicts).toContain('Hujjat turi mos emas');
   });
 
+  it('never matches a passport with a vehicle registration (BTS)', () => {
+    const result = matchByCategory(
+      { category: 'docs', itemType: 'pasport', itemDescription: 'Pasport yo‘qoldi' },
+      { category: 'docs', itemType: 'texnik pasport', itemDescription: 'Texnik pasport (BTS) topildi' },
+    );
+
+    expect(result.eligible).toBe(false);
+    expect(result.conflicts).toContain('Hujjat turi mos emas');
+  });
+
+  it('matches two vehicle registrations with each other', () => {
+    const result = matchByCategory(
+      { category: 'docs', itemDescription: 'BTS AA 1234567 yo‘qoldi' },
+      { category: 'docs', itemDescription: 'Texnik pasport AA1234567 topildi' },
+    );
+
+    expect(result.eligible).toBe(true);
+    expect(result.signals.find((signal) => signal.key === 'documentType')?.evidence)
+      .toBe('Texnik pasport (BTS)');
+  });
+
+  it('refuses to match documents when the document type is unknown', () => {
+    const result = matchByCategory(
+      { category: 'docs', itemDescription: 'Muhim hujjat yo‘qoldi' },
+      { category: 'docs', itemDescription: 'Muhim hujjat topildi' },
+    );
+
+    expect(result.eligible).toBe(false);
+    expect(result.conflicts).toContain('Hujjat turi aniqlanmadi');
+  });
+
+  it('rejects documents of the same type with a different series', () => {
+    const result = matchByCategory(
+      { category: 'docs', itemDescription: 'Pasport AA 1234567 yo‘qoldi' },
+      { category: 'docs', itemDescription: 'Pasport AD 1234567 topildi' },
+    );
+
+    expect(result.eligible).toBe(false);
+    expect(result.conflicts).toContain('Hujjat seriyasi mos emas');
+  });
+
   it('matches technology by brand, model, color and storage', () => {
     const result = matchByCategory(
       { category: 'tech', itemDescription: 'Qora Samsung Galaxy S23 256 GB' },
