@@ -50,7 +50,9 @@ export const kaa = {
   cat_sports: "Sport",
   cat_books: "Kitaplar",
   cat_pets: "Úy haywanları",
-  cat_other: "Basqa",
+  cat_home: "Úy buyımları",
+  cat_tools: "Ásbaplar",
+  cat_food: "Azıq-awqat",
 
   // Empty State
   empty_title: "Hesh nárse tabılmadı",

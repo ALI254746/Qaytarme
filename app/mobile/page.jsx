@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { getApiUrl } from "@/lib/api-config";
+import { buildArizaListUrl } from "@/lib/ariza-api";
 import { useSearchParams } from "next/navigation";
 import { useLanguage } from "@/context/LanguageContext";
 
@@ -64,16 +64,15 @@ export default function MobileHomePage() {
       if (isNew) setLoading(true);
       else setLoadingMore(true);
 
-      const queryParams = new URLSearchParams({
+      const url = buildArizaListUrl({
         page: pageNum,
-        limit: 20, // 20 items per page for mobile
+        limit: 20,
         search: searchQuery,
-        status: filter !== 'all' ? filter : '',
-        category: category !== 'all' ? category : '',
-        lang: lang 
+        status: filter,
+        category,
+        lang,
       });
 
-      const url = getApiUrl(`ariza?${queryParams}`);
       const res = await fetch(url);
       const data = await res.json();
 

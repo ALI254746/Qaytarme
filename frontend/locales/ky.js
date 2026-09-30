@@ -50,7 +50,9 @@ export const ky = {
   cat_sports: "Спорт",
   cat_books: "Китептер",
   cat_pets: "Үй жаныбарлары",
-  cat_other: "Башка",
+  cat_home: "Үй буюмдары",
+  cat_tools: "Шаймандар",
+  cat_food: "Тамак-аш",
 
   // Empty State
   empty_title: "Эч нерсе табылган жок",

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { getApiUrl } from "@/lib/api-config";
+import { fetchAllArizalar } from "@/lib/ariza-api";
 import { useTheme } from "@/context/ThemeContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { GoogleMap, useJsApiLoader, Marker } from "@react-google-maps/api";
@@ -69,15 +69,11 @@ export default function MobileMapPage() {
   useEffect(() => {
     const fetchItems = async () => {
       try {
-        const res = await fetch(getApiUrl("ariza?limit=1000"), { cache: 'no-store' }); 
-        if (res.ok) {
-           const data = await res.json();
-           let itemsArray = Array.isArray(data) ? data : (data.items || data.arizalar || data.data || []);
-           
-           // Filter valid coords
-           const validItems = itemsArray.filter(item => item.coordinates?.lat && item.coordinates?.lng);
-           setItems(validItems);
-        }
+        const itemsArray = await fetchAllArizalar();
+
+        // Filter valid coords
+        const validItems = itemsArray.filter(item => item.coordinates?.lat && item.coordinates?.lng);
+        setItems(validItems);
       } catch (error) {
         console.error("Map fetch error:", error);
       } finally {

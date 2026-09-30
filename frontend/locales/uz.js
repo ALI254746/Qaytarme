@@ -50,7 +50,9 @@ export const uz = {
   cat_sports: "Sport",
   cat_books: "Kitoblar",
   cat_pets: "Uy hayvonlari",
-  cat_other: "Boshqa",
+  cat_home: "Uy jihozlari",
+  cat_tools: "Asboblar",
+  cat_food: "Oziq-ovqat",
   
   // Empty State
   empty_title: "Hech narsa topilmadi",
