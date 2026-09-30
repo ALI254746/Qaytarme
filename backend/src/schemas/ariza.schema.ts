@@ -29,6 +29,17 @@ class Image {
 const ImageSchema = SchemaFactory.createForClass(Image);
 
 @Schema({ _id: false })
+class GeoJSONPoint {
+  @Prop({ type: String, enum: ['Point'], default: 'Point' })
+  type: 'Point';
+
+  @Prop({ type: [Number], required: true })
+  coordinates: [number, number];
+}
+
+const GeoJSONPointSchema = SchemaFactory.createForClass(GeoJSONPoint);
+
+@Schema({ _id: false })
 export class SourceProvenance {
   @Prop({
     type: String,
@@ -201,13 +212,7 @@ export class Ariza extends Document {
    * GeoJSON mirror of `coordinates`, kept in sync automatically.
    * Required for $near / $geoWithin queries and hotspot aggregation.
    */
-  @Prop({
-    type: {
-      type: { type: String, enum: ['Point'], default: 'Point' },
-      coordinates: { type: [Number] },
-    },
-    default: null,
-  })
+  @Prop({ type: GeoJSONPointSchema, default: null })
   geo: GeoPoint | null;
 
   @Prop()
