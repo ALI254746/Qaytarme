@@ -6,6 +6,7 @@ import {
   jaccardSimilarity,
   simhash,
 } from './simhash.util';
+import { SIMHASH_NEAR_DISTANCE } from './dedupe.util';
 
 describe('simhash fingerprinting', () => {
   const original =
@@ -23,7 +24,7 @@ describe('simhash fingerprinting', () => {
 
     const distance = hammingDistance(simhash(original), simhash(repost));
     expect(distance).not.toBeNull();
-    expect(distance as number).toBeLessThanOrEqual(12);
+    expect(distance as number).toBeLessThanOrEqual(SIMHASH_NEAR_DISTANCE);
   });
 
   it('treats a cyrillic repost of the same post as near duplicate', () => {
