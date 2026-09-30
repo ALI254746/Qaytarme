@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { getApiUrl } from "@/lib/api-config";
+import { fetchAllArizalar } from "@/lib/ariza-api";
 import { useTheme } from "@/context/ThemeContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from "@react-google-maps/api";
@@ -157,29 +157,14 @@ export default function MapPage() {
   useEffect(() => {
     const fetchItems = async () => {
       try {
-        const res = await fetch(getApiUrl("ariza?limit=1000"), { cache: 'no-store' }); 
-          if (res.ok) {
-            const data = await res.json();
-            
-            let itemsArray = [];
-            if (Array.isArray(data)) {
-              itemsArray = data;
-            } else if (data && Array.isArray(data.items)) {
-              itemsArray = data.items;
-            } else if (data && Array.isArray(data.data)) {
-              itemsArray = data.data;
-            } else if (data && Array.isArray(data.arizalar)) {
-              itemsArray = data.arizalar;
-            }
-            
-            // Filter out items without coordinates
-            const validItems = itemsArray.filter(item => {
-               const hasCoords = item.coordinates && item.coordinates.lat && item.coordinates.lng;
-               return hasCoords;
-            });
-            
-            setItems(validItems);
-          }
+        const itemsArray = await fetchAllArizalar();
+
+        // Filter out items without coordinates
+        const validItems = itemsArray.filter(item => {
+          const hasCoords = item.coordinates && item.coordinates.lat && item.coordinates.lng;
+          return hasCoords;
+        });
+        setItems(validItems);
       } catch (error) {
         console.error("Map fetch error:", error);
       } finally {

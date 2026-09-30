@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence, useMotionValue, useTransform } from "framer-motion";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { getApiUrl } from "@/lib/api-config";
+import { buildArizaListUrl } from "@/lib/ariza-api";
 import { useSearchParams } from "next/navigation";
 import { useLanguage } from "@/context/LanguageContext";
 
@@ -15,19 +15,20 @@ import { useLanguage } from "@/context/LanguageContext";
 
 const CATEGORIES = [
   { id: "all", icon: "🔍" },
-  { id: "electronics", icon: "💻" },
-  { id: "documents", icon: "📄" },
-  { id: "personal", icon: "💼" },
+  { id: "tech", labelId: "electronics", icon: "💻" },
+  { id: "docs", labelId: "documents", icon: "📄" },
+  { id: "wallet", labelId: "bags", icon: "💼" },
   { id: "clothing", icon: "👕" },
-  { id: "accessories", icon: "⌚" },
+  { id: "jewelry", labelId: "accessories", icon: "⌚" },
   { id: "keys", icon: "🔑" },
-  { id: "bags", icon: "🎒" },
-  { id: "automotive", icon: "🚗" },
-  { id: "kids", icon: "🧸" },
+  { id: "vehicle", labelId: "automotive", icon: "🚗" },
+  { id: "toys", labelId: "kids", icon: "🧸" },
   { id: "sports", icon: "⚽" },
   { id: "books", icon: "📚" },
   { id: "pets", icon: "🐾" },
-  { id: "other", icon: "📦" }
+  { id: "home", icon: "🏠" },
+  { id: "tools", icon: "🛠️" },
+  { id: "food", icon: "🥤" },
 ];
 
 const ItemSkeleton = () => (
@@ -318,16 +319,15 @@ export default function DashboardPage() {
         if (isNew) setLoading(true);
         else setLoadingMore(true);
 
-        const queryParams = new URLSearchParams({
+        const url = buildArizaListUrl({
            page: pageNum,
-           limit: 24, // Increased from 12 to 24 for better initial load
+           limit: 24,
            search: searchQuery,
-           status: filter !== 'all' ? filter : '',
-           category: category !== 'all' ? category : '',
-           lang: lang 
+           status: filter,
+           category,
+           lang,
         });
 
-        const url = getApiUrl(`ariza?${queryParams}`);
         console.log('Frontend Fetching Items URL:', url);
         console.log('Frontend Selected Category:', category);
 
@@ -460,7 +460,7 @@ export default function DashboardPage() {
             {[...CATEGORIES, ...CATEGORIES, ...CATEGORIES].map((cat, index) => (
               <FilterButton
                 key={`${cat.id}-${index}`}
-                label={t("cat_" + cat.id)}
+                label={t("cat_" + (cat.labelId || cat.id))}
                 icon={cat.icon}
                 active={category === cat.id}
                 onClick={() => setCategory(cat.id)}

@@ -50,7 +50,9 @@ export const ru = {
   cat_sports: "Спорт",
   cat_books: "Книги",
   cat_pets: "Питомцы",
-  cat_other: "Другое",
+  cat_home: "Товары для дома",
+  cat_tools: "Инструменты",
+  cat_food: "Еда",
 
   // Empty State
   empty_title: "Ничего не найдено",

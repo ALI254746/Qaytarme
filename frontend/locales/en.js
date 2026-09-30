@@ -50,7 +50,9 @@ export const en = {
   cat_sports: "Sports",
   cat_books: "Books",
   cat_pets: "Pets",
-  cat_other: "Other",
+  cat_home: "Home goods",
+  cat_tools: "Tools",
+  cat_food: "Food",
 
   // Empty State
   empty_title: "No items found",
