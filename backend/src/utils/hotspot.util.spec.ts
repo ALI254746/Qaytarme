@@ -36,16 +36,16 @@ describe('cellKeyFor', () => {
   });
 
   it('handles a custom cell size', () => {
-    const coarse = cellKeyFor(41.2995, 69.2401, 0.1);
-    expect(coarse).toBe(cellKeyFor(41.3495, 69.2901, 0.1));
+    const coarse = cellKeyFor(41.215, 69.2401, 0.1);
+    expect(coarse).toBe(cellKeyFor(41.2495, 69.2901, 0.1));
   });
 });
 
 describe('buildHotspots', () => {
   it('marks a dense cell as significant', () => {
     const incidents = [
-      ...pointsAt(MIN_HOTSPOT_COUNT + 3, 41.2995, 69.2401, { category: 'tech' }),
-      ...pointsAt(1, 41.35, 69.29, { category: 'keys' }),
+      ...pointsAt(MIN_HOTSPOT_COUNT + 3, 41.295, 69.235, { category: 'tech' }),
+      ...pointsAt(1, 41.355, 69.295, { category: 'keys' }),
     ];
 
     const [top] = buildHotspots(incidents);
@@ -88,8 +88,8 @@ describe('buildHotspots', () => {
 
   it('reports the share of incidents per cell', () => {
     const incidents = [
-      ...pointsAt(6, 41.2995, 69.2401),
-      ...pointsAt(2, 41.35, 69.29),
+      ...pointsAt(6, 41.295, 69.235),
+      ...pointsAt(2, 41.355, 69.295),
     ];
 
     const [top] = buildHotspots(incidents);
