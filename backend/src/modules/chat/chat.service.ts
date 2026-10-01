@@ -40,6 +40,29 @@ export class ChatService {
       const sender = await this.userModel.findById(senderId, 'name');
       const recipient = await this.userModel.findById(recipientId, 'pushSubscription');
 
+      try {
+        await this.userModel.updateOne(
+          { _id: recipientId },
+          {
+            $addToSet: {
+              notifications: {
+                _id: savedMessage._id,
+                type: 'message',
+                title: 'Yangi xabar',
+                message: `${sender?.name || 'Foydalanuvchi'}: ${content.trim().slice(0, 180)}`,
+                from: new Types.ObjectId(senderId),
+                createdAt: savedMessage.createdAt,
+                read: false,
+                relatedMessageId: savedMessage._id,
+                actionUrl: `/desktop/messages?userId=${encodeURIComponent(senderId)}`,
+              },
+            },
+          },
+        );
+      } catch (notificationError) {
+        console.error('Message notification could not be saved:', notificationError);
+      }
+
       // Emit via socket
       const populatedMessage = await this.messageModel.findById(savedMessage._id)
         .populate('sender', 'name avatar')

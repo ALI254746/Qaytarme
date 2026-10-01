@@ -7,6 +7,7 @@ import { getApiUrl } from "@/lib/api-config";
 import { useSnackbar, SnackbarProvider } from "notistack";
 import Link from 'next/link';
 import { useLanguage } from "@/context/LanguageContext";
+import MyItemsTab from "./MyItemsTab";
 
 // --- Animated Components ---
 
@@ -47,18 +48,28 @@ const SectionTitle = ({ children }) => (
 
 function ProfileContent() {
   const { t } = useLanguage();
-  const { data: session, update: updateSession } = useSession();
+  const { data: session, status: sessionStatus, update: updateSession } = useSession();
   const { enqueueSnackbar } = useSnackbar();
   
-  const [activeTab, setActiveTab] = useState("overview"); 
+  const [activeTab, setActiveTab] = useState("items");
   const [userData, setUserData] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [savedItemsCount, setSavedItemsCount] = useState(0);
   const [editForm, setEditForm] = useState({ name: "", phone: "", bio: "" });
 
   useEffect(() => {
+    try {
+      const savedItems = JSON.parse(localStorage.getItem("qaytarme:saved-items") || "[]");
+      setSavedItemsCount(Array.isArray(savedItems) ? savedItems.length : 0);
+    } catch (error) {
+      console.error("Could not load saved announcement count:", error);
+    }
+  }, []);
+
+  useEffect(() => {
     const fetchProfile = async () => {
+      if (sessionStatus === "loading") return;
       if (!session?.user?.accessToken) return;
       try {
         const res = await fetch(getApiUrl("users/me"), {
@@ -71,12 +82,10 @@ function ProfileContent() {
         }
       } catch (error) {
         console.error(error);
-      } finally {
-        setLoading(false);
       }
     };
-    if (session?.user?.accessToken) fetchProfile();
-  }, [session]);
+    fetchProfile();
+  }, [session?.user?.accessToken, sessionStatus]);
 
   const handleSaveProfile = async () => {
     if (!session?.user?.accessToken) return;
@@ -136,68 +145,78 @@ function ProfileContent() {
     points: userData?.points || 0
   };
 
-  if (loading && !userData) {
-     return (
-        <div className="min-h-screen flex items-center justify-center bg-[#F7F6E2] dark:bg-black">
-           <div className="flex flex-col gap-4 w-full px-8 max-w-lg">
-              <div className="h-64 bg-white/50 dark:bg-white/5 rounded-[2.5rem] animate-pulse" />
-           </div>
-        </div>
-     );
-  }
-
   return (
     <motion.div 
       initial="hidden" 
       animate="visible" 
       variants={staggerContainer}
-      className="min-h-screen bg-[#F7F6E2] dark:bg-black pb-20 space-y-8"
+      className="min-h-screen bg-[#f7f7f7] pb-8 space-y-4 dark:bg-neutral-950"
     >
-       {/* Premium Header */}
-       <div className="relative bg-neutral-900 dark:bg-white mx-4 lg:mx-8 mt-4 lg:mt-8 rounded-[3rem] p-8 lg:p-12 overflow-hidden shadow-2xl shadow-neutral-900/20 dark:shadow-none min-h-[250px] flex flex-col md:flex-row items-end justify-between gap-8 group">
-          {/* Animated Background */}
-         <div className="absolute inset-0 overflow-hidden">
-             {/* Blob 1 - Top Right - Mint - Large Spread */}
-             <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-gradient-to-br from-[#A9D3C9] to-[#8BC1B5] rounded-full blur-[120px] -translate-y-1/3 translate-x-1/4 animate-pulse duration-3000" />
-             
-             {/* Blob 2 - Bottom Left - Mint - Large Spread */}
-             <div className="absolute bottom-0 left-0 w-[800px] h-[800px] bg-gradient-to-tr from-[#A9D3C9] to-[#8BC1B5] rounded-full blur-[120px] translate-y-1/3 -translate-x-1/4 animate-pulse duration-5000" />
-             
-             {/* Subtle Texture Overlay */}
-             <div className="absolute inset-0 opacity-[0.03] dark:opacity-[0.05]" style={{ backgroundImage: 'radial-gradient(#000 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
-         </div>
+       <div className="mx-4 flex items-center gap-2 pt-4 text-[11px] text-neutral-500 lg:mx-8">
+          <Link href="/desktop" className="hover:text-neutral-900 dark:hover:text-white">Bosh sahifa</Link>
+          <span aria-hidden="true">/</span>
+          <span>Profil</span>
+       </div>
+       <h1 className="mx-4 text-2xl font-extrabold text-neutral-900 lg:mx-8 dark:text-white">Mening profilim</h1>
 
-          <div className="relative z-10 flex items-end gap-6 w-full">
+       <div className="relative mx-4 flex min-h-[72px] flex-col items-center justify-between gap-4 rounded-lg border border-neutral-200 bg-white px-4 py-3 shadow-sm sm:flex-row lg:mx-8 dark:border-neutral-800 dark:bg-neutral-900">
+          {/* Animated Background */}
+          <div className="flex w-full items-center gap-3">
             <div className="relative group/avatar">
-               <div className="w-24 h-24 lg:w-32 lg:h-32 rounded-[2rem] bg-white dark:bg-neutral-900 p-2 shadow-2xl rotate-3 group-hover/avatar:rotate-0 transition-transform duration-500">
+               <div className="h-12 w-12 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
                   {user.image ? (
-                     <img src={user.image} alt="Avatar" className="w-full h-full object-cover rounded-[1.5rem]" />
+                     <img src={user.image} alt="Avatar" className="w-full h-full object-cover rounded-full" />
                   ) : (
-                     <div className="w-full h-full bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center text-4xl font-black text-neutral-300 rounded-[1.5rem]">{user.name[0]}</div>
+                     <div className="flex h-full w-full items-center justify-center text-lg font-semibold text-neutral-500">{user.name[0]}</div>
                   )}
                </div>
-               <label className="absolute -bottom-2 -right-2 w-10 h-10 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white rounded-xl flex items-center justify-center shadow-lg cursor-pointer hover:scale-110 active:scale-95 transition-all border border-neutral-100 dark:border-white/10">
+               <label className="absolute -bottom-1 -right-1 w-6 h-6 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white rounded-full flex items-center justify-center shadow cursor-pointer border border-neutral-100 dark:border-white/10">
                    {uploadingAvatar ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> : <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
                    <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
                </label>
             </div>
             
-            <div className="mb-2">
-               <h1 className="text-3xl lg:text-5xl font-black text-white dark:text-neutral-900 mb-2 tracking-tighter">{user.name}</h1>
-               <div className="flex items-center gap-3">
-                  <span className="px-3 py-1 rounded-lg bg-white/20 dark:bg-black/10 text-white dark:text-neutral-900 text-[10px] font-bold uppercase tracking-widest backdrop-blur-md">
+            <div className="min-w-0">
+               <h2 className="truncate text-sm font-bold text-neutral-900 dark:text-white">{user.name}</h2>
+               <div className="mt-1 flex flex-wrap items-center gap-3 text-[10px] text-neutral-500">
+                  <span className="truncate">
                      {user.email}
                   </span>
-                  <span className="px-3 py-1 rounded-lg bg-[#A9D3C9] text-[#2E2D2B] text-[10px] font-bold uppercase tracking-widest shadow-[0_0_15px_-3px_rgba(169,211,201,0.5)]">
-                     {user.points > 100 ? "Gold Member 🏆" : "Beginner 🌱"}
-                  </span>
+                  <span className="rounded-full bg-neutral-100 px-2 py-1 text-[9px] font-semibold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">✓ Tasdiqlangan</span>
+                  <span>⌖ {userData?.city || userData?.region || "Joylashuv kiritilmagan"}</span>
+                  {userData?.createdAt && <span>▣ {new Date(userData.createdAt).getFullYear()}-yildan beri</span>}
                </div>
             </div>
+            <button type="button" onClick={() => setActiveTab("overview")} className="shrink-0 rounded-lg border border-neutral-300 px-3 py-2 text-[10px] font-semibold text-neutral-700 transition hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800">✎ Profilni tahrirlash</button>
           </div>
        </div>
 
        <div className="max-w-[1920px] mx-auto px-4 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+             {[
+               { label: "e’lon", value: user.stats.itemsLost + user.stats.itemsFound, icon: "▤" },
+               { label: "topilgan", value: user.stats.itemsFound, icon: "●" },
+               { label: "egasiga qaytarilgan", value: user.stats.successfulReturns, icon: "✓" },
+               { label: "saqlangan", value: savedItemsCount, icon: "☆" },
+             ].map((stat) => (
+               <div key={stat.label} className="flex min-h-[54px] items-center gap-3 rounded-lg border border-neutral-200 bg-white px-3 py-2 dark:border-neutral-800 dark:bg-neutral-900">
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200" aria-hidden="true">{stat.icon}</span>
+                  <div className="min-w-0"><div className="text-sm font-bold leading-4 text-neutral-900 dark:text-white">{stat.value}</div><div className="truncate text-[9px] text-neutral-500">{stat.label}</div></div>
+               </div>
+             ))}
+          </div>
+          <div className="mb-4 flex gap-5 overflow-x-auto border-b border-neutral-200 px-1 dark:border-neutral-800">
+             <button type="button" onClick={() => setActiveTab("items")} className={`flex shrink-0 items-center gap-2 border-b-2 px-2 py-3 text-[11px] font-semibold transition ${activeTab === "items" ? "border-neutral-900 text-neutral-900 dark:border-white dark:text-white" : "border-transparent text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"}`}>
+                <span aria-hidden="true">▤</span> {t("profile_menu_my_items")} <span className="rounded-full bg-neutral-200 px-1.5 py-0.5 text-[9px] dark:bg-neutral-800">{user.stats.itemsLost + user.stats.itemsFound}</span>
+             </button>
+             <button type="button" onClick={() => setActiveTab("overview")} className={`flex shrink-0 items-center gap-2 border-b-2 px-2 py-3 text-[11px] font-semibold transition ${activeTab === "overview" ? "border-neutral-900 text-neutral-900 dark:border-white dark:text-white" : "border-transparent text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"}`}>
+                <span aria-hidden="true">♙</span> {t("profile_info_title")}
+             </button>
+             <Link href="/desktop/messages" className="flex shrink-0 items-center gap-2 border-b-2 border-transparent px-2 py-3 text-[11px] font-semibold text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"><span aria-hidden="true">◌</span> {t("nav_messages")}</Link>
+             <Link href="/desktop/settings" className="flex shrink-0 items-center gap-2 border-b-2 border-transparent px-2 py-3 text-[11px] font-semibold text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"><span aria-hidden="true">⚙</span> {t("profile_menu_settings")}</Link>
+          </div>
+
+          {activeTab === "items" ? <MyItemsTab /> : <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
              
              {/* Left Column: Stats & Quick Actions */}
              <div className="space-y-6">
@@ -249,13 +268,13 @@ function ProfileContent() {
                       <span className="w-1.5 h-1.5 rounded-full bg-mint" /> {t('profile_menus_title')}
                    </h3>
                    <div className="space-y-3">
-                      <Link href="/desktop/my-items" className="flex items-center justify-between p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-800 hover:bg-mint hover:text-neutral-900 group transition-all">
+                      <button type="button" onClick={() => setActiveTab("items")} className="flex w-full items-center justify-between p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-800 hover:bg-mint hover:text-neutral-900 group transition-all">
                          <span className="text-sm font-bold flex items-center gap-3">
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
                             {t('profile_menu_my_items')}
                          </span>
                          <svg className="w-4 h-4 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-                      </Link>
+                      </button>
                       <Link href="/desktop/settings" className="flex items-center justify-between p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-800 hover:bg-neutral-900 hover:text-white dark:hover:bg-white dark:hover:text-neutral-900 group transition-all">
                          <span className="text-sm font-bold flex items-center gap-3">
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
@@ -331,7 +350,7 @@ function ProfileContent() {
 
                  </div>
              </div>
-          </div>
+          </div>}
        </div>
     </motion.div>
   );

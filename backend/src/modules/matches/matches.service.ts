@@ -5,6 +5,7 @@ import { Model, Types } from 'mongoose';
 import { ImageAnnotatorClient } from '@google-cloud/vision';
 import { Match } from '../../schemas/match.schema';
 import { Ariza } from '../../schemas/ariza.schema';
+import { User } from '../../schemas/user.schema';
 import { matchByCategory } from '../../utils/category-matcher.util';
 import {
   calculateExplainableMatchScore,
@@ -25,6 +26,7 @@ export class MatchesService {
   constructor(
     @InjectModel(Match.name) private readonly matchModel: Model<Match>,
     @InjectModel(Ariza.name) private readonly arizaModel: Model<Ariza>,
+    @InjectModel(User.name) private readonly userModel: Model<User>,
     private readonly configService: ConfigService,
   ) {
     this.imageClient = this.createImageClient();
@@ -202,7 +204,7 @@ export class MatchesService {
         });
         if (exists) continue;
 
-        await this.matchModel.create({
+        const createdMatch = await this.matchModel.create({
           lostItem: lostItem._id,
           foundItem: foundItem._id,
           similarity: evaluation.score,
@@ -213,6 +215,47 @@ export class MatchesService {
           isRead1: false,
           isRead2: false,
         });
+        const notification = {
+          _id: createdMatch._id,
+          type: 'match',
+          title: 'Yangi moslik topildi',
+          createdAt: new Date(),
+          read: false,
+          actionUrl: '/desktop/matches',
+        };
+        try {
+          await Promise.all([
+            this.userModel.updateOne(
+              { _id: lostItem.user },
+              {
+                $addToSet: {
+                  notifications: {
+                    ...notification,
+                    message: `“${foundItem.itemName || foundItem.itemType || 'E’lon'}” e’loniga moslik topildi. O‘xshashlik: ${evaluation.score}%.`,
+                    relatedEntityId: foundItem._id,
+                  },
+                },
+              },
+            ),
+            this.userModel.updateOne(
+              { _id: foundItem.user },
+              {
+                $addToSet: {
+                  notifications: {
+                    ...notification,
+                    message: `“${lostItem.itemName || lostItem.itemType || 'E’lon'}” e’loniga moslik topildi. O‘xshashlik: ${evaluation.score}%.`,
+                    relatedEntityId: lostItem._id,
+                  },
+                },
+              },
+            ),
+          ]);
+        } catch (notificationError: any) {
+          this.logger.error(
+            'Moslik bildirishnomasi saqlanmadi',
+            notificationError?.stack ?? notificationError?.message,
+          );
+        }
         matches.push(candidate._id as Types.ObjectId);
       }
 
@@ -241,6 +284,22 @@ export class MatchesService {
       .sort({ createdAt: -1 })
       .lean()
       .exec();
+  }
+
+  async markUserMatchesRead(userId: string) {
+    const userObjectId = new Types.ObjectId(userId);
+    const [asLostOwner, asFoundOwner] = await Promise.all([
+      this.matchModel.updateMany(
+        { user1: userObjectId, isRead1: false },
+        { $set: { isRead1: true } },
+      ),
+      this.matchModel.updateMany(
+        { user2: userObjectId, isRead2: false },
+        { $set: { isRead2: true } },
+      ),
+    ]);
+
+    return { modifiedCount: asLostOwner.modifiedCount + asFoundOwner.modifiedCount };
   }
 
   async findRelatedItemId(

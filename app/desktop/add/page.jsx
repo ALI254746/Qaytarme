@@ -1,639 +1,380 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import React, { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { getApiUrl } from "@/lib/api-config";
 import Link from "next/link";
-import { useTheme } from "@/context/ThemeContext";
+import { getApiUrl } from "@/lib/api-config";
 import { useLanguage } from "@/context/LanguageContext";
-import { GOOGLE_MAPS_LIBRARIES } from "../../map-constants";
-import { GoogleMap, useJsApiLoader, Marker, Autocomplete } from "@react-google-maps/api";
-
-// Dark Mode Map Styles
-const darkMapStyles = [
-  { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
-  // ... (keep existing styles implicitly via ..., actual file content will handle this but for replacement stick to lines)
-];
 
 const CATEGORIES = [
-  { id: "electronics", label: "Elektronika", icon: "📱" },
-  { id: "documents", label: "Hujjatlar", icon: "📄" },
-  { id: "personal", label: "Shaxsiy buyumlar", icon: "👜" },
-  { id: "clothing", label: "Kiyim-kechak", icon: "👕" },
-  { id: "accessories", label: "Aksessuarlar", icon: "⌚" },
-  { id: "keys", label: "Kalitlar", icon: "🔑" },
-  { id: "bags", label: "Sumkalar", icon: "🎒" },
-  { id: "automotive", label: "Avtomobil buyumlari", icon: "🚗" },
-  { id: "kids", label: "Bolalar buyumlari", icon: "🧸" },
-  { id: "sports", label: "Sport anjomlari", icon: "⚽" },
-  { id: "books", label: "Kitoblar", icon: "📚" },
-  { id: "pets", label: "Uy hayvonlari", icon: "�" },
-  { id: "other", label: "Boshqa", icon: "📦" }
+  { id: "electronics", label: "Elektronika" },
+  { id: "documents", label: "Hujjatlar" },
+  { id: "personal", label: "Shaxsiy buyumlar" },
+  { id: "clothing", label: "Kiyim-kechak" },
+  { id: "accessories", label: "Aksessuarlar" },
+  { id: "keys", label: "Kalitlar" },
+  { id: "bags", label: "Sumkalar" },
+  { id: "automotive", label: "Avtomobil buyumlari" },
+  { id: "kids", label: "Bolalar buyumlari" },
+  { id: "sports", label: "Sport anjomlari" },
+  { id: "books", label: "Kitoblar" },
+  { id: "pets", label: "Uy hayvonlari" },
+  { id: "other", label: "Boshqa" },
 ];
 
-
+const LeafletMap = dynamic(() => import("./LeafletMap"), {
+  ssr: false,
+  loading: () => <div className="flex h-full items-center justify-center text-xs text-neutral-500">Xarita yuklanmoqda…</div>,
+});
 
 export default function AddItemPage() {
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const router = useRouter();
-  const { isDarkMode } = useTheme();
   const { t } = useLanguage();
-  
-  const STEPS = [
-    { id: 1, title: t("add_step_1_title"), desc: t("add_step_1_desc") },
-    { id: 2, title: t("add_step_2_title"), desc: t("add_step_2_desc") },
-    { id: 3, title: t("add_step_3_title"), desc: t("add_step_3_desc") },
-    { id: 4, title: t("add_step_4_title"), desc: t("add_step_4_desc") },
-    { id: 5, title: t("add_step_5_title"), desc: t("add_step_5_desc") }
-  ];
-  
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [autocomplete, setAutocomplete] = useState(null);
-
-  // Load Google Maps API
-  const { isLoaded, loadError } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "", 
-    libraries: GOOGLE_MAPS_LIBRARIES
-  });
-
-  const mapRef = useRef(null);
-  const onLoad = useCallback(function callback(map) {
-    mapRef.current = map;
-  }, []);
-  const onUnmount = useCallback(function callback(map) {
-    mapRef.current = null;
-  }, []);
-
-  const onAutocompleteLoad = (autocompleteInstance) => {
-    setAutocomplete(autocompleteInstance);
-  };
-
-  const onPlaceChanged = () => {
-    if (autocomplete !== null) {
-      const place = autocomplete.getPlace();
-      if (place.geometry && place.geometry.location) {
-        const lat = place.geometry.location.lat();
-        const lng = place.geometry.location.lng();
-        const newPos = { lat, lng };
-        
-        setFormData(prev => ({ 
-            ...prev, 
-            location: newPos,
-            address: place.formatted_address || prev.address 
-        }));
-        
-        if (mapRef.current) {
-            mapRef.current.panTo(newPos);
-            mapRef.current.setZoom(15);
-        }
-      }
-    }
-  };
-
-  // Form State
+  const [requiresLogin, setRequiresLogin] = useState(false);
+  const [contactViaPlatform, setContactViaPlatform] = useState(true);
+  const [showPhone, setShowPhone] = useState(false);
   const [formData, setFormData] = useState({
-    type: "", // 'lost' or 'found'
+    type: "lost",
     category: "",
-    image: null,
-    imagePreview: null,
+    images: [],
     title: "",
     description: "",
-    location: { lat: 41.2995, lng: 69.2401 }, // Tashkent default
+    location: { lat: 41.2995, lng: 69.2401 },
     address: "Toshkent",
     contactPhone: "",
     telegram: "",
-    date: new Date().toISOString().split('T')[0]
+    date: "",
   });
+  const steps = [
+    { id: 1, title: "Buyum haqida" },
+    { id: 2, title: "Joylashuv va tekshirish" },
+  ];
+  const inputClass = "h-[30px] w-full rounded-lg border border-neutral-200 bg-white px-3 text-xs text-neutral-800 outline-none transition placeholder:text-neutral-400 focus:border-neutral-400 focus:ring-2 focus:ring-neutral-100 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 dark:focus:ring-neutral-800";
+  const labelClass = "mb-1 block text-xs font-bold text-neutral-800 dark:text-neutral-200";
+  const getCategoryLabel = (categoryId) => {
+    const translated = t(`cat_${categoryId}`);
+    return translated === `cat_${categoryId}`
+      ? CATEGORIES.find((category) => category.id === categoryId)?.label || categoryId
+      : translated;
+  };
 
-   // Auto Geolocation
-   useEffect(() => {
-    if (currentStep === 4 && navigator.geolocation) {
-       navigator.geolocation.getCurrentPosition(
-         (position) => {
-            const { latitude, longitude } = position.coords;
-            const userPos = { lat: latitude, lng: longitude };
-            setFormData(prev => ({ ...prev, location: userPos }));
-            if (mapRef.current) {
-                mapRef.current.panTo(userPos);
-                mapRef.current.setZoom(15);
-            }
-            fetchAddress(latitude, longitude);
-         },
-         (error) => console.log("Geolocation error:", error),
-         { enableHighAccuracy: true }
-       );
+  const fetchAddress = React.useCallback(async (lat, lng) => {
+    try {
+      const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+      if (!response.ok) throw new Error("Manzilni aniqlab bo‘lmadi.");
+      const result = await response.json();
+      setFormData((prev) => ({ ...prev, address: result.display_name || prev.address }));
+    } catch (fetchError) {
+      console.error("Address fetch error", fetchError);
     }
-  }, [currentStep]);
+  }, []);
+
+  useEffect(() => {
+    if (currentStep !== 2 || !navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        const position = { lat: coords.latitude, lng: coords.longitude };
+        setFormData((prev) => ({ ...prev, location: position }));
+        fetchAddress(position.lat, position.lng);
+      },
+      () => {},
+      { enableHighAccuracy: true },
+    );
+  }, [currentStep, fetchAddress]);
+
+  const handleFileChange = (event) => {
+    const files = Array.from(event.target.files || []);
+    event.target.value = "";
+    if (!files.length) return;
+    const validFiles = files.filter((file) => /^image\/(jpe?g|png|webp|heic|heif)$/i.test(file.type) && file.size <= 8 * 1024 * 1024);
+    const invalidFiles = files.length - validFiles.length;
+    const availableSlots = Math.max(0, 5 - formData.images.length);
+    const acceptedFiles = validFiles.slice(0, availableSlots);
+    if (invalidFiles) {
+      setError("JPG, PNG, WebP yoki HEIC formatidagi, 8 MB gacha rasm tanlang.");
+    } else if (validFiles.length > availableSlots) {
+      setError("Ko‘pi bilan 5 ta rasm tanlash mumkin.");
+    } else {
+      setError("");
+    }
+    setFormData((prev) => {
+      const newImages = acceptedFiles.slice(0, Math.max(0, 5 - prev.images.length)).map((file) => ({ file, preview: URL.createObjectURL(file) }));
+      return { ...prev, images: [...prev.images, ...newImages] };
+    });
+  };
 
   const handleNext = () => {
-    if (currentStep < STEPS.length) {
-      // Validation logic
-      if (currentStep === 1 && !formData.type) return setError(t("add_error_step1"));
-      if (currentStep === 2 && (!formData.category || !formData.image)) return setError(t("add_error_step2"));
-      if (currentStep === 3 && (!formData.title || !formData.description)) return setError(t("add_error_step3"));
-      
-      setError("");
-      setCurrentStep(prev => prev + 1);
+    if (!formData.type || !formData.images.length || !formData.category || !formData.date || !formData.title.trim() || !formData.description.trim()) {
+      setError("Majburiy maydonlarni to‘ldiring.");
+      return;
     }
-  };
-
-  const handleBack = () => {
-    if (currentStep > 1) setCurrentStep(prev => prev - 1);
-  };
-
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setFormData(prev => ({
-        ...prev,
-        image: file,
-        imagePreview: URL.createObjectURL(file)
-      }));
+    if ((!contactViaPlatform && !showPhone) || (showPhone && !formData.contactPhone.trim())) {
+      setError("Kamida bitta aloqa usulini tanlang va telefon raqamini kiriting.");
+      return;
     }
-  };
-
-  const fetchAddress = async (lat, lng) => {
-    try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
-      const data = await res.json();
-      setFormData(prev => ({ ...prev, address: data.display_name }));
-    } catch (e) {
-      console.error("Address fetch error", e);
-    }
-  };
-
-  const handleMapClick = (e) => {
-      const lat = e.latLng.lat();
-      const lng = e.latLng.lng();
-      setFormData(prev => ({ ...prev, location: { lat, lng } }));
-      fetchAddress(lat, lng);
+    setError("");
+    setCurrentStep(2);
   };
 
   const handleSubmit = async () => {
+    setError("");
+    setRequiresLogin(false);
+    if (sessionStatus === "loading") {
+      setError("Sessiya tekshirilmoqda. Birozdan so‘ng qayta urinib ko‘ring.");
+      return;
+    }
+    if (!session?.user?.accessToken) {
+      setRequiresLogin(true);
+      setError("E’lon joylash uchun tizimga kirishingiz kerak.");
+      return;
+    }
+
     setLoading(true);
     try {
       const data = new FormData();
       data.append("status", formData.type);
       data.append("category", formData.category);
-      data.append("title", formData.title); 
-      data.append("itemType", formData.title); 
-      data.append("description", formData.description);
+      data.append("itemType", formData.title);
       data.append("itemDescription", formData.description);
       data.append("location", formData.address);
       data.append("coordinates", JSON.stringify(formData.location));
       data.append("date", formData.date);
-      data.append("phone", formData.contactPhone);
+      data.append("phone", showPhone ? formData.contactPhone : "");
       data.append("telegram", formData.telegram);
-      if (formData.image) {
-        data.append("image", formData.image);
-      }
+      formData.images.forEach(({ file }, index) => data.append(index === 0 ? "image" : "images", file));
 
-      const res = await fetch(getApiUrl("ariza"), {
+      const response = await fetch(getApiUrl("ariza"), {
         method: "POST",
-        headers: {
-          "Authorization": `Bearer ${session?.user?.accessToken}`
-        },
-        body: data
+        headers: { Authorization: `Bearer ${session?.user?.accessToken || ""}` },
+        body: data,
       });
-
-        if (res.ok) {
-        router.push("/desktop");
-      } else {
-        const errData = await res.json();
-        throw new Error(errData.message || t("error_generic") || "Xatolik yuz berdi");
+      if (!response.ok) {
+        const responseData = await response.json().catch(() => ({}));
+        if (response.status === 401) {
+          setRequiresLogin(true);
+          throw new Error("Sessiya muddati tugagan. E’lon joylash uchun qayta kiring.");
+        }
+        throw new Error(responseData.message || t("error_generic") || "Xatolik yuz berdi");
       }
-    } catch (err) {
-      console.error(err);
-      setError(err.message);
+      router.push("/desktop");
+    } catch (submitError) {
+      console.error(submitError);
+      setError(submitError.message || "E’lonni yuborishda xatolik yuz berdi.");
     } finally {
       setLoading(false);
     }
   };
 
-  const containerVariants = {
-    hidden: { opacity: 0, x: 20 },
-    visible: { opacity: 1, x: 0, transition: { duration: 0.3 } },
-    exit: { opacity: 0, x: -20, transition: { duration: 0.3 } }
-  };
-
   return (
-    <div className="min-h-screen bg-ivory dark:bg-black p-4 lg:p-8 flex items-start justify-center pt-4 lg:pt-8">
-      <div className="w-full max-w-5xl mx-auto rounded-[2.5rem] bg-white dark:bg-[#111111] shadow-2xl shadow-neutral-200/50 dark:shadow-[0_0_50px_-5px_#A9D3C9] overflow-hidden flex flex-col md:flex-row min-h-[500px] h-auto border border-neutral-100 dark:border-white/5 transition-shadow duration-300">
-        
-        {/* Sidebar Steps (Desktop) / Top Progress (Mobile) */}
-        <div className="w-full md:w-1/3 bg-neutral-50 dark:bg-black border-b md:border-b-0 md:border-r border-neutral-100 dark:border-white/5 p-8 flex flex-col">
-          <Link href="/desktop" className="flex items-center gap-2 mb-10 text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-            <span className="font-bold text-sm">{t("add_back")}</span>
-          </Link>
+    <div className="mx-auto w-full max-w-[1120px] px-4 pb-4 pt-4 text-neutral-900 dark:text-neutral-100 sm:px-8 lg:px-8 lg:pt-[18px]">
+      <header className="mb-[14px] flex min-h-[42px] flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-[22px] font-extrabold leading-7 tracking-tight sm:text-[24px]">{t("add_title")}</h1>
+          <p className="text-xs leading-4 text-neutral-500">E’lonni 2 daqiqada joylashtiring</p>
+        </div>
+        <div className="flex items-center gap-3 pb-1" aria-label="E’lon yaratish bosqichlari">
+          {steps.map((step, index) => (
+            <React.Fragment key={step.id}>
+              {index > 0 && <span className="h-px w-8 bg-neutral-300 dark:bg-neutral-700 sm:w-12" />}
+              <div className="flex items-center gap-2">
+                <span className={`flex h-6 w-6 items-center justify-center rounded-full border text-[11px] font-bold ${currentStep === step.id ? "border-neutral-700 bg-neutral-700 text-white dark:border-neutral-200 dark:bg-neutral-200 dark:text-neutral-900" : "border-neutral-300 text-neutral-500 dark:border-neutral-700"}`}>
+                  {currentStep > step.id ? "✓" : step.id}
+                </span>
+                <span className={`hidden text-[11px] font-semibold sm:block ${currentStep === step.id ? "text-neutral-800 dark:text-neutral-200" : "text-neutral-500"}`}>{step.title}</span>
+              </div>
+            </React.Fragment>
+          ))}
+        </div>
+      </header>
 
-          <div className="space-y-6">
-            <h2 className="text-2xl font-black text-neutral-900 dark:text-white mb-2">{t("add_title")}</h2>
-            <div className="space-y-1">
-              {STEPS.map((step, index) => (
-                <div key={step.id} className="relative pl-8 py-2">
-                  {/* Line */}
-                  {index !== STEPS.length - 1 && (
-                    <div className={`absolute left-[11px] top-8 bottom-[-8px] w-0.5 ${currentStep > step.id ? 'bg-mint' : 'bg-neutral-200 dark:bg-neutral-800'}`} />
+      <section className="overflow-hidden rounded-[14px] border border-neutral-200 bg-white shadow-[0_8px_30px_rgba(0,0,0,0.04)] dark:border-neutral-800 dark:bg-neutral-950">
+        {currentStep === 1 ? (
+          <div className="grid md:grid-cols-[0.7fr_1fr]">
+            <div className="space-y-5 border-b border-neutral-100 p-4 sm:p-5 md:border-b-0 md:border-r dark:border-neutral-800">
+              <div>
+                <p className={labelClass}>Nima sodir bo‘ldi? <span aria-hidden="true">*</span></p>
+                <div className="grid grid-cols-2 rounded-lg border border-neutral-200 bg-neutral-50 p-0.5 dark:border-neutral-700 dark:bg-neutral-900">
+                  {[{ value: "lost", label: t("add_lost") }, { value: "found", label: t("add_found") }].map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      aria-pressed={formData.type === option.value}
+                      onClick={() => setFormData((prev) => ({ ...prev, type: option.value }))}
+                      className={`h-8 rounded-md px-2 text-xs font-semibold transition ${formData.type === option.value ? "bg-neutral-700 text-white shadow-sm dark:bg-neutral-200 dark:text-neutral-900" : "text-neutral-600 hover:bg-white dark:text-neutral-300 dark:hover:bg-neutral-800"}`}
+                    >{option.label}</button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className={labelClass}>Rasm qo‘shing</p>
+                <label
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    handleFileChange({ target: { files: event.dataTransfer.files, value: "" } });
+                  }}
+                  className="group flex h-40 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-neutral-300 bg-neutral-50/70 text-center transition hover:border-neutral-500 hover:bg-neutral-100/70 dark:border-neutral-700 dark:bg-neutral-900/50 dark:hover:bg-neutral-900"
+                >
+                  <input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple onChange={handleFileChange} disabled={formData.images.length >= 5} className="sr-only" />
+                  {formData.images.length >= 5 ? (
+                    <span className="text-xs font-medium text-neutral-500">5 ta rasm tanlandi</span>
+                  ) : (
+                    <>
+                      <svg className="mb-2 h-8 w-8 text-neutral-500 transition group-hover:text-neutral-800 dark:group-hover:text-neutral-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 15v4a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-4" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                      <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300">Rasmni shu yerga tashlang</span>
+                      <span className="mt-1 text-[10px] text-neutral-400">yoki kompyuterdan tanlang</span>
+                      <span className="mt-2 rounded-md border border-neutral-200 bg-white px-3 py-1.5 text-[10px] font-bold text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">Rasm tanlash</span>
+                    </>
                   )}
-                  {/* Dot */}
-                  <div className={`absolute left-0 top-3 w-6 h-6 rounded-full border-2 flex items-center justify-center z-10 transition-colors ${
-                    currentStep === step.id 
-                      ? 'border-mint bg-mint text-neutral-900' 
-                      : currentStep > step.id 
-                        ? 'border-mint bg-mint text-neutral-900' 
-                        : 'border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-300'
-                  }`}>
-                    {currentStep > step.id ? (
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                    ) : (
-                      <span className="text-[10px] font-bold">{step.id}</span>
+                </label>
+                <p className="mt-1.5 text-[10px] text-neutral-500">{formData.images.length ? `${formData.images.length}/5 ta rasm tanlandi` : "1–5 ta rasm, JPG yoki PNG"}</p>
+                {formData.images.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {formData.images.map(({ file, preview }, index) => (
+                      <div key={`${file.name}-${file.lastModified}-${index}`} className="relative h-[76px] w-[76px] overflow-hidden rounded-lg bg-neutral-100 dark:bg-neutral-800">
+                        <img src={preview} alt={`${index + 1}-rasm`} className="h-full w-full object-cover" />
+                        <button
+                          type="button"
+                          aria-label={`${index + 1}-rasmni olib tashlash`}
+                          onClick={() => setFormData((prev) => {
+                            URL.revokeObjectURL(prev.images[index].preview);
+                            return { ...prev, images: prev.images.filter((_, imageIndex) => imageIndex !== index) };
+                          })}
+                          className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-neutral-800/80 text-[10px] text-white"
+                        >×</button>
+                      </div>
+                    ))}
+                    {formData.images.length < 5 && (
+                      <label className="flex h-[76px] w-[76px] cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-neutral-300 text-neutral-500 transition hover:border-neutral-500 hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-900">
+                        <input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple onChange={handleFileChange} className="sr-only" />
+                        <span className="text-2xl leading-none">+</span>
+                        <span className="mt-1 text-[9px]">Rasm qo‘shish</span>
+                      </label>
                     )}
                   </div>
-                  
-                  <div className={`transition-opacity duration-300 ${currentStep === step.id ? 'opacity-100' : 'opacity-50'}`}>
-                    <h3 className={`text-sm font-bold ${currentStep === step.id ? 'text-neutral-900 dark:text-white' : 'text-neutral-500'}`}>{step.title}</h3>
-                    <p className="text-[10px] text-neutral-400">{step.desc}</p>
-                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-2 p-4 sm:p-5">
+              <div>
+                <label htmlFor="item-title" className={labelClass}>Buyum nomi <span aria-hidden="true">*</span></label>
+                <input id="item-title" type="text" value={formData.title} onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))} placeholder="Masalan, qora ryukzak" className={inputClass} required />
+              </div>
+              <div>
+                <label htmlFor="item-category" className={labelClass}>Kategoriya <span aria-hidden="true">*</span></label>
+                <select id="item-category" value={formData.category} onChange={(e) => setFormData((prev) => ({ ...prev, category: e.target.value }))} className={`${inputClass} ${formData.category ? "" : "text-neutral-400"}`} required>
+                  <option value="" disabled>Kategoriyani tanlang</option>
+                  {CATEGORIES.map((category) => <option key={category.id} value={category.id}>{getCategoryLabel(category.id)}</option>)}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="item-date" className={labelClass}>Sana <span aria-hidden="true">*</span></label>
+                <div className="relative">
+                  <input
+                    id="item-date"
+                    type="date"
+                    value={formData.date}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, date: e.target.value }))}
+                    className={`${inputClass} pr-9 ${formData.date ? "text-neutral-600 dark:text-neutral-300" : "text-transparent dark:text-transparent"} [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:opacity-0`}
+                    required
+                  />
+                  {!formData.date && <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-neutral-400">Sana tanlang</span>}
+                  <svg className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3.5" y="5" width="17" height="16" rx="2" strokeWidth="1.6" /><path d="M7.5 3.5v3M16.5 3.5v3M3.5 9h17" strokeWidth="1.6" strokeLinecap="round" /></svg>
                 </div>
-              ))}
+              </div>
+              <div>
+                <label htmlFor="item-description" className={labelClass}>Qisqa tavsif <span aria-hidden="true">*</span></label>
+                <textarea id="item-description" value={formData.description} onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value.slice(0, 500) }))} placeholder="Rangi, holati, o‘ziga xos belgilari va nima holatda yo‘qotilganini yozing..." className="min-h-[68px] w-full resize-y rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs leading-5 text-neutral-800 outline-none transition placeholder:text-neutral-400 focus:border-neutral-400 focus:ring-2 focus:ring-neutral-100 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 dark:focus:ring-neutral-800" maxLength={500} required />
+                <div className="mt-1 flex items-start justify-between gap-2 text-[9px] text-neutral-400"><span>Iltimos, buyumning rangi va o‘ziga xos belgilarini yozing.</span><span className="shrink-0">{formData.description.length}/500</span></div>
+              </div>
+              <fieldset>
+                <legend className={`${labelClass} mb-2`}>Aloqa afzalligi</legend>
+                <label className="mb-2 flex cursor-pointer items-center gap-2 text-[11px] text-neutral-700 dark:text-neutral-300">
+                  <input type="checkbox" checked={contactViaPlatform} onChange={(e) => setContactViaPlatform(e.target.checked)} className="h-3.5 w-3.5 rounded border-neutral-300 accent-neutral-800" />
+                  Platforma orqali yozish (tavsiya etiladi)
+                </label>
+                <label className="flex cursor-pointer items-center gap-2 text-[11px] text-neutral-700 dark:text-neutral-300">
+                  <input type="checkbox" checked={showPhone} onChange={(e) => setShowPhone(e.target.checked)} className="h-3.5 w-3.5 rounded border-neutral-300 accent-neutral-800" />
+                  Telefon raqamimni ko‘rsatish
+                </label>
+                {showPhone && <input type="tel" required value={formData.contactPhone} onChange={(e) => setFormData((prev) => ({ ...prev, contactPhone: e.target.value }))} placeholder="+998 90 123 45 67" className={`${inputClass} mt-2`} aria-label="Telefon raqamingiz" />}
+                <p className="mt-2 flex items-start gap-1.5 text-[9px] leading-4 text-neutral-400">
+                  <svg className="mt-0.5 h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9" strokeWidth="1.6" /><path d="M12 11v5m0-8h.01" strokeWidth="1.6" strokeLinecap="round" /></svg>
+                  Sizning aloqa ma’lumotlaringiz faqat mos kelgan foydalanuvchilarga ulashiladi.
+                </p>
+              </fieldset>
             </div>
           </div>
-        </div>
-
-        {/* Form Area */}
-        <div className="flex-1 p-8 lg:p-12 relative flex flex-col">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={currentStep}
-              variants={containerVariants}
-              initial="hidden"
-              animate="visible"
-              exit="exit"
-              className="flex-1 flex flex-col"
-            >
-              
-              {/* STEP 1: Type Selection */}
-              {currentStep === 1 && (
-                <div className="my-auto space-y-8">
-                  <div className="text-center md:text-left">
-                    <h2 className="text-3xl font-black text-neutral-900 dark:text-white mb-2">{t("add_step1_header")}</h2>
-                    <p className="text-neutral-500">{t("add_step1_sub")}</p>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <button
-                      onClick={() => setFormData({ ...formData, type: 'lost' })}
-                      className={`relative p-8 rounded-3xl border-2 transition-all duration-300 group text-left ${
-                        formData.type === 'lost' 
-                          ? 'border-red-500 bg-red-50 dark:bg-red-900/10' 
-                          : 'border-neutral-100 dark:border-neutral-800 hover:border-red-200 dark:hover:border-red-900/30 bg-white dark:bg-neutral-800'
-                      }`}
-                    >
-                      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-2xl mb-4 transition-colors ${
-                        formData.type === 'lost' ? 'bg-red-500 text-white' : 'bg-red-100 text-red-500 dark:bg-red-900/30'
-                      }`}>
-                        💔
-                      </div>
-                      <h3 className="text-xl font-bold text-neutral-900 dark:text-white mb-1">{t("add_lost")}</h3>
-                      <p className="text-sm text-neutral-500">{t("add_lost_desc")}</p>
-                      
-                      {formData.type === 'lost' && (
-                        <div className="absolute top-4 right-4 text-red-500">
-                          <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
-                        </div>
-                      )}
-                    </button>
-
-                    <button
-                      onClick={() => setFormData({ ...formData, type: 'found' })}
-                      className={`relative p-8 rounded-3xl border-2 transition-all duration-300 group text-left ${
-                        formData.type === 'found' 
-                          ? 'border-mint bg-mint/10' 
-                          : 'border-neutral-100 dark:border-neutral-800 hover:border-mint/50 bg-white dark:bg-neutral-800'
-                      }`}
-                    >
-                      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-2xl mb-4 transition-colors ${
-                        formData.type === 'found' ? 'bg-mint text-neutral-900' : 'bg-[#A9D3C9]/30 text-[#2E2D2B] dark:text-white'
-                      }`}>
-                        🎁
-                      </div>
-                      <h3 className="text-xl font-bold text-neutral-900 dark:text-white mb-1">{t("add_found")}</h3>
-                      <p className="text-sm text-neutral-500">{t("add_found_desc")}</p>
-
-                      {formData.type === 'found' && (
-                        <div className="absolute top-4 right-4 text-mint">
-                          <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
-                        </div>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* STEP 2: Category & Image */}
-              {currentStep === 2 && (
-                <div className="space-y-6">
-                  <div>
-                    <h2 className="text-2xl font-black text-neutral-900 dark:text-white mb-1">{t("add_upload_title")}</h2>
-                    <p className="text-neutral-500 text-sm">{t("add_upload_desc")}</p>
-                  </div>
-                  
-                  <div className="relative group">
-                    <input 
-                      type="file" 
-                      accept="image/*"
-                      onChange={handleFileChange}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" 
-                    />
-                    <div className={`w-full h-64 rounded-3xl border-2 border-dashed flex flex-col items-center justify-center transition-all bg-neutral-50 dark:bg-neutral-900 overflow-hidden ${
-                      formData.imagePreview ? 'border-mint' : 'border-neutral-200 dark:border-neutral-700 hover:border-mint'
-                    }`}>
-                      {formData.imagePreview ? (
-                        <div className="relative w-full h-full">
-                          <img src={formData.imagePreview} className="w-full h-full object-contain" alt="Preview" />
-                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                             <p className="text-white font-bold">{t("add_upload_change")}</p>
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          <div className="w-16 h-16 bg-white dark:bg-neutral-800 rounded-2xl shadow-sm flex items-center justify-center text-3xl mb-4">📸</div>
-                          <p className="text-neutral-500 font-medium">{t("add_upload_placeholder")}</p>
-                          <p className="text-xs text-neutral-400 mt-2">{t("add_upload_click")}</p>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <h3 className="font-bold text-neutral-900 dark:text-white mb-4">{t("add_cat_title")}</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                      {CATEGORIES.map(cat => (
-                        <button
-                          key={cat.id}
-                          onClick={() => setFormData({ ...formData, category: cat.id })}
-                          className={`px-4 py-3 rounded-xl text-sm font-bold flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-2 transition-all w-full text-center sm:text-left ${
-                            formData.category === cat.id
-                              ? 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 scale-105 shadow-lg'
-                              : 'bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-700 border border-neutral-100 dark:border-white/5'
-                          }`}
-                        >
-                          <span className="text-lg">{cat.icon}</span>
-                          <span>{t(`cat_${cat.id}`)}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* STEP 3: Details */}
-              {currentStep === 3 && (
-                <div className="space-y-6">
-                  <div>
-                    <h2 className="text-2xl font-black text-neutral-900 dark:text-white mb-1">{t("add_details_title")}</h2>
-                    <p className="text-neutral-500 text-sm">{t("add_details_desc")}</p>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div>
-                         <label className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5 block ml-1">{t("add_label_title")}</label>
-                         <input 
-                            type="text" 
-                            value={formData.title}
-                            onChange={(e) => setFormData({...formData, title: e.target.value})}
-                            placeholder={t("add_placeholder_title")}
-                            className="w-full h-14 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl px-5 font-bold text-neutral-900 dark:text-white outline-none focus:border-mint transition-colors placeholder:text-neutral-400"
-                         />
-                    </div>
-                    
-                    <div>
-                         <label className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5 block ml-1">{t("add_label_desc")}</label>
-                         <textarea 
-                            value={formData.description}
-                            onChange={(e) => setFormData({...formData, description: e.target.value})}
-                            placeholder={t("add_placeholder_desc")}
-                            className="w-full h-32 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-5 font-medium text-neutral-900 dark:text-white outline-none focus:border-mint transition-colors placeholder:text-neutral-400 resize-none"
-                         />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5 block ml-1">{t("add_label_date")}</label>
-                            <input 
-                                type="date"
-                                value={formData.date}
-                                onChange={(e) => setFormData({...formData, date: e.target.value})} 
-                                className="w-full h-12 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 font-bold text-neutral-900 dark:text-white outline-none focus:border-mint"
-                            />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                           <div>
-                                <label className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5 block ml-1">{t("add_label_phone")} (ixtiyoriy)</label>
-                                <input 
-                                   type="tel" 
-                                   value={formData.contactPhone}
-                                   onChange={(e) => setFormData({...formData, contactPhone: e.target.value})}
-                                   placeholder="+998 90 123 45 67"
-                                   className="w-full h-12 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 font-bold text-neutral-900 dark:text-white outline-none focus:border-mint"
-                                />
-                           </div>
-                           <div>
-                                <label className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5 block ml-1">Telegram (ixtiyoriy)</label>
-                                <div className="relative">
-                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 font-bold">@</span>
-                                    <input 
-                                       type="text" 
-                                       value={formData.telegram}
-                                       onChange={(e) => setFormData({...formData, telegram: e.target.value})}
-                                       placeholder="username"
-                                       className="w-full h-12 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl pl-10 pr-4 font-bold text-neutral-900 dark:text-white outline-none focus:border-mint"
-                                    />
-                                </div>
-                           </div>
-                        </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* STEP 4: Location */}
-              {currentStep === 4 && (
-                <div className="h-full flex flex-col">
-                   <div className="mb-4">
-                      <h2 className="text-2xl font-black text-neutral-900 dark:text-white mb-1">{t("add_loc_title")}</h2>
-                      <p className="text-neutral-500 text-sm">{t("add_loc_desc")}</p>
-                   </div>
-                   <div className="flex-1 min-h-[400px] rounded-3xl overflow-hidden relative shadow-inner border border-neutral-100 dark:border-neutral-800">
-                      {isLoaded ? (
-
-                          <GoogleMap
-                            mapContainerStyle={{ width: '100%', height: '100%' }}
-                            center={formData.location}
-                            zoom={13}
-                            onClick={handleMapClick}
-                            onLoad={onLoad}
-                            onUnmount={onUnmount}
-                            options={{
-                              disableDefaultUI: true,
-                              zoomControl: false,
-                              mapTypeId: 'hybrid', // Satellite with labels
-                              styles: isDarkMode ? darkMapStyles : []
-                            }}
-                          >
-                             <Marker position={formData.location} />
-                             
-                             {/* Autocomplete Search */}
-                             <div className="absolute top-4 left-4 right-4 z-[200]">
-                                <Autocomplete
-                                    onLoad={onAutocompleteLoad}
-                                    onPlaceChanged={onPlaceChanged}
-                                >
-                                    <div className="relative">
-                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <svg className="h-5 w-5 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                            </svg>
-                                        </div>
-                                        <input
-                                            type="text"
-                                            placeholder={t("add_loc_search_placeholder")}
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Enter') {
-                                                    e.preventDefault();
-                                                }
-                                            }}
-                                            className="w-full pl-10 pr-4 py-3 rounded-xl bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md border border-neutral-200 dark:border-white/10 shadow-lg text-sm font-bold text-neutral-900 dark:text-white outline-none focus:ring-2 focus:ring-mint"
-                                        />
-                                    </div>
-                                </Autocomplete>
-                             </div>
-                          </GoogleMap>
-                      ) : (
-                          <div className="w-full h-full flex items-center justify-center bg-neutral-100 dark:bg-neutral-800">
-                             <div className="animate-spin text-4xl">🌍</div>
-                          </div>
-                      )}
-                      
-                      <div className="absolute bottom-4 left-4 right-4 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md p-4 rounded-xl shadow-lg z-[100]">
-                          <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-1">{t("add_loc_selected")}</p>
-                          <p className="text-sm font-black text-neutral-900 dark:text-white line-clamp-2">{formData.address}</p>
-                      </div>
-                   </div>
-                </div>
-              )}
-
-              {/* STEP 5: Review Step */}
-              {currentStep === 5 && (
-                <div className="space-y-6">
-                  <div>
-                    <h2 className="text-3xl font-black text-neutral-900 dark:text-white mb-2">{t("add_review_title")}</h2>
-                    <p className="text-neutral-500">{t("add_review_desc")}</p>
-                  </div>
-
-                  <div className="bg-neutral-50 dark:bg-neutral-900 p-6 rounded-3xl space-y-4 border border-neutral-100 dark:border-white/5">
-                      <div className="flex items-start gap-4">
-                          <div className="w-24 h-24 rounded-2xl overflow-hidden bg-white shadow-sm shrink-0">
-                              {formData.imagePreview && <img src={formData.imagePreview} className="w-full h-full object-cover" />}
-                          </div>
-                          <div className="flex-1">
-                              <span className={`inline-block px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-widest mb-2 ${
-                                  formData.type === 'lost' ? 'bg-red-100 text-red-600' : 'bg-mint text-neutral-900'
-                              }`}>
-                                  {formData.type === 'lost' ? t("add_lost") : t("add_found")}
-                              </span>
-                              <h3 className="text-xl font-bold text-neutral-900 dark:text-white">{formData.title}</h3>
-                              <p className="text-sm text-neutral-500 line-clamp-2 mt-1">{formData.description}</p>
-                          </div>
-                      </div>
-                      
-                      <div className="h-px bg-neutral-200 dark:bg-neutral-800" />
-                      
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                          <div>
-                              <p className="text-neutral-400 text-xs font-bold uppercase">{t("add_cat_title")}</p>
-                              <p className="font-semibold text-neutral-800 dark:text-neutral-200">{CATEGORIES.find(c => c.id === formData.category) ? t(`cat_${formData.category}`) : ""}</p>
-                          </div>
-                          <div>
-                              <p className="text-neutral-400 text-xs font-bold uppercase">{t("add_label_date")}</p>
-                              <p className="font-semibold text-neutral-800 dark:text-neutral-200">{formData.date}</p>
-                          </div>
-                          {formData.telegram && (
-                              <div className="col-span-2">
-                                  <p className="text-neutral-400 text-xs font-bold uppercase">Telegram</p>
-                                  <p className="font-semibold text-neutral-800 dark:text-neutral-200">@{formData.telegram}</p>
-                              </div>
-                          )}
-                          <div className="col-span-2">
-                              <p className="text-neutral-400 text-xs font-bold uppercase">{t("add_loc_selected")}</p>
-                              <p className="font-semibold text-neutral-800 dark:text-neutral-200">{formData.address}</p>
-                          </div>
-                      </div>
-                  </div>
-                </div>
-              )}
-
-            </motion.div>
-          </AnimatePresence>
-
-          {/* Validation Error */}
-          {error && (
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="absolute bottom-20 left-12 right-12 bg-red-50 text-red-500 px-4 py-3 rounded-xl border border-red-100 text-sm font-bold flex items-center gap-2">
-               <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-               {error}
-            </motion.div>
-          )}
-
-          {/* Bottom Actions */}
-          <div className="mt-8 flex items-center justify-between pt-6 border-t border-neutral-100 dark:border-white/5">
-             <button
-               onClick={handleBack}
-               disabled={currentStep === 1}
-               className={`px-6 py-3 rounded-xl font-bold text-sm transition-colors ${
-                 currentStep === 1 
-                   ? 'opacity-0 pointer-events-none' 
-                   : 'text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800'
-               }`}
-             >
-               {t("back")}
-             </button>
-
-             {currentStep < STEPS.length ? (
-                 <button
-                 onClick={handleNext}
-                 className="px-8 py-4 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-xl font-bold text-sm hover:scale-105 active:scale-95 transition-all shadow-lg flex items-center gap-2"
-               >
-                 <span>{t("add_btn_next")}</span>
-                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-               </button>
-             ) : (
-               <button
-                 onClick={handleSubmit}
-                 disabled={loading}
-                 className="px-10 py-4 bg-mint text-neutral-900 rounded-xl font-black text-sm hover:scale-105 active:scale-95 transition-all shadow-xl shadow-mint/20 flex items-center gap-2"
-               >
-                 {loading ? (
-                   <>
-                     <div className="w-4 h-4 border-2 border-neutral-900 border-t-transparent rounded-full animate-spin" />
-                     <span>{t("add_btn_submitting")}</span>
-                   </>
-                 ) : (
-                    <>
-                      <span>{t("add_btn_submit")}</span>
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
-                    </>
-                 )}
-               </button>
-             )}
+        ) : (
+          <div className="grid gap-5 p-4 sm:p-5 lg:grid-cols-[1.25fr_0.75fr]">
+            <div>
+              <h2 className="mb-1 text-sm font-bold">Joylashuvni belgilang</h2>
+              <p className="mb-3 text-[11px] text-neutral-500">{t("add_loc_desc")}</p>
+              <div className="relative h-[300px] overflow-hidden rounded-xl border border-neutral-200 bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900">
+                <LeafletMap
+                  position={formData.location}
+                  setPosition={(location) => setFormData((prev) => ({ ...prev, location }))}
+                  fetchAddress={fetchAddress}
+                />
+              </div>
+              <label className="mt-2 block text-[11px] text-neutral-500">
+                Manzil
+                <input value={formData.address} onChange={(e) => setFormData((prev) => ({ ...prev, address: e.target.value }))} className={`${inputClass} mt-1`} />
+              </label>
+            </div>
+            <aside className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900/50">
+              <h2 className="mb-3 text-sm font-bold">E’lonni tekshiring</h2>
+              {formData.images[0]?.preview && <img src={formData.images[0].preview} alt="" className="mb-3 h-28 w-full rounded-lg bg-white object-contain dark:bg-neutral-800" />}
+              <span className="rounded-md bg-neutral-200 px-2 py-1 text-[10px] font-semibold text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">{formData.type === "lost" ? t("add_lost") : t("add_found")}</span>
+              <h3 className="mt-3 text-sm font-bold">{formData.title}</h3>
+              <p className="mt-1 text-[11px] text-neutral-500">{formData.description}</p>
+              <dl className="mt-4 space-y-2 border-t border-neutral-200 pt-3 text-[11px] dark:border-neutral-700">
+                <div className="flex justify-between gap-3"><dt className="text-neutral-500">Kategoriya</dt><dd className="text-right font-medium">{getCategoryLabel(formData.category)}</dd></div>
+                <div className="flex justify-between gap-3"><dt className="text-neutral-500">Sana</dt><dd className="font-medium">{formData.date}</dd></div>
+              </dl>
+            </aside>
           </div>
-        </div>
-      </div>
+        )}
+
+        {error && (
+          <div role="alert" className="border-t border-red-100 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300 sm:px-5">
+            {error}
+            {requiresLogin && (
+              <Link href="/login?callbackUrl=%2Fdesktop%2Fadd" className="ml-1 underline underline-offset-2">
+                Tizimga kirish
+              </Link>
+            )}
+          </div>
+        )}
+        <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 px-4 py-3.5 dark:border-neutral-800 sm:px-5">
+          <div className="flex items-center gap-4">
+            <Link href="/desktop" className="text-xs font-semibold text-neutral-500 underline underline-offset-2 transition hover:text-neutral-900 dark:hover:text-white">Bekor qilish</Link>
+            {currentStep === 2 && <button type="button" onClick={() => setCurrentStep(1)} className="text-xs font-semibold text-neutral-500 transition hover:text-neutral-900 dark:hover:text-white">Ortga</button>}
+          </div>
+          <div className="flex items-center gap-3">
+            {currentStep === 1 && <span className="hidden items-center gap-1.5 text-[10px] text-neutral-500 sm:flex"><span className="text-neutral-400">◷</span> E’lon ma’lumotlari</span>}
+            {currentStep === 1 ? (
+              <button type="button" onClick={handleNext} className="inline-flex h-9 items-center gap-2 rounded-lg bg-neutral-800 px-4 text-xs font-bold text-white transition hover:bg-neutral-700 dark:bg-neutral-200 dark:text-neutral-900 dark:hover:bg-white">
+                Joylashuvga o‘tish
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              </button>
+            ) : (
+              <button type="button" onClick={handleSubmit} disabled={loading} className="inline-flex h-9 items-center gap-2 rounded-lg bg-neutral-800 px-4 text-xs font-bold text-white transition hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-neutral-200 dark:text-neutral-900 dark:hover:bg-white">
+                {loading ? t("add_btn_submitting") : t("add_btn_submit")}
+                {!loading && <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m5 12 4 4L19 6" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+              </button>
+            )}
+          </div>
+        </footer>
+      </section>
     </div>
   );
 }

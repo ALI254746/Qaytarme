@@ -131,9 +131,14 @@ export class ArizaService {
       );
     }
 
+    const alreadyConfirmed = ariza.confirmedByFinder;
     ariza.confirmedByFinder = true;
     await ariza.save();
-    return this.checkAndAwardPoints(ariza);
+    const updated = await this.checkAndAwardPoints(ariza);
+    if (!alreadyConfirmed) {
+      await this.notifyHandoverParticipant(ariza, userId, updated.moderationStatus === 'returned');
+    }
+    return updated;
   }
 
   async confirmReceipt(arizaId: string, userId: string, otherUserId: string) {
@@ -150,9 +155,58 @@ export class ArizaService {
       throw new ForbiddenException('Qabul qilishni faqat buyum egasi tasdiqlaydi');
     }
 
+    const alreadyConfirmed = ariza.confirmedByLoser;
     ariza.confirmedByLoser = true;
     await ariza.save();
-    return this.checkAndAwardPoints(ariza);
+    const updated = await this.checkAndAwardPoints(ariza);
+    if (!alreadyConfirmed) {
+      await this.notifyHandoverParticipant(ariza, userId, updated.moderationStatus === 'returned');
+    }
+    return updated;
+  }
+
+  private async notifyHandoverParticipant(ariza: Ariza, userId: string, completed: boolean) {
+    const ownerId = ariza.user.toString();
+    const otherParticipantId = ownerId === userId
+      ? ariza.matchedUser?.toString()
+      : ownerId;
+    if (!otherParticipantId || otherParticipantId === userId) return;
+
+    const isFinder =
+      (ariza.status === 'found' && ownerId === userId)
+      || (ariza.status === 'lost' && ownerId !== userId);
+    const title = completed
+      ? 'Buyum qaytarildi'
+      : isFinder
+        ? 'Qabul qilish kutilmoqda'
+        : 'Topshirish tasdiqlandi';
+    const message = completed
+      ? 'Buyum qaytarilgani ikki tomon tomonidan tasdiqlandi.'
+      : isFinder
+        ? 'Topilgan buyum topshirildi. Qabul qilganingizni tasdiqlang.'
+        : 'Buyum egasi qabul qilganini tasdiqladi.';
+    try {
+      await this.userModel.updateOne(
+        { _id: otherParticipantId },
+        {
+          $addToSet: {
+            notifications: {
+              _id: new Types.ObjectId(),
+              type: 'handover',
+              title,
+              message,
+              from: new Types.ObjectId(userId),
+              createdAt: new Date(),
+              read: false,
+              actionUrl: `/desktop/messages?userId=${encodeURIComponent(userId)}&itemId=${encodeURIComponent(ariza._id.toString())}`,
+              relatedEntityId: ariza._id,
+            },
+          },
+        },
+      );
+    } catch (notificationError) {
+      this.logger.error('Topshirish bildirishnomasi saqlanmadi', notificationError);
+    }
   }
 
   async cancelDeal(arizaId: string, userId: string) {
@@ -232,23 +286,24 @@ export class ArizaService {
   async create(
     userId: string,
     data: CreateArizaDto & Record<string, any>,
-    file?: Express.Multer.File | { url: string; phash?: string },
+    file?: Express.Multer.File | { url: string; phash?: string } | Array<Express.Multer.File>,
   ) {
     try {
-      let imageData: { url: string; publicId?: string; phash?: string } | null = null;
+      const files = Array.isArray(file) ? file : file ? [file] : [];
+      const imagesData: Array<{ url: string; publicId?: string; phash?: string }> = [];
 
-      if (file) {
-        if ('url' in file) {
+      for (const uploadedFile of files) {
+        if ('url' in uploadedFile) {
           // Provided by the trusted Telegram ingestion pipeline.
-          imageData = { url: file.url, phash: file.phash };
+          imagesData.push({ url: uploadedFile.url, phash: uploadedFile.phash });
         } else {
-          const result = await this.cloudinaryService.uploadFile(file);
-          imageData = {
+          const result = await this.cloudinaryService.uploadFile(uploadedFile);
+          imagesData.push({
             url: (result as any).secure_url,
             publicId: (result as any).public_id,
             // Perceptual hash, used to recognise the same photo in reposts.
             phash: extractCloudinaryPhash(result as any),
-          };
+          });
         }
       }
 
@@ -297,7 +352,8 @@ export class ArizaService {
         region: data.region,
         district: data.district,
         coordinates,
-        image: imageData,
+        image: imagesData[0] ?? null,
+        images: imagesData,
         moderationStatus: 'approved',
       };
 

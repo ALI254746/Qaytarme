@@ -48,14 +48,17 @@ export class User extends Document {
       {
         type: {
           type: String,
-          enum: ['friend_request', 'like', 'comment', 'new-ariza', 'system', 'admin_message'],
+          enum: ['friend_request', 'like', 'comment', 'new-ariza', 'system', 'admin_message', 'message', 'match', 'handover', 'expired'],
           required: true,
         },
+        title: { type: String },
         message: { type: String, required: true },
         from: { type: Types.ObjectId, ref: 'User' },
         createdAt: { type: Date, default: Date.now },
         read: { type: Boolean, default: false },
         relatedMessageId: { type: Types.ObjectId, ref: 'Message', required: false },
+        actionUrl: { type: String },
+        relatedEntityId: { type: Types.ObjectId },
       },
     ],
   })

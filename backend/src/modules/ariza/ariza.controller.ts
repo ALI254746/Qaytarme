@@ -8,13 +8,13 @@ import {
   Post,
   Query,
   Req,
-  UploadedFile,
+  UploadedFiles,
   UseGuards,
   UseInterceptors,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { ArizaService } from './ariza.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RateLimit, RateLimitGuard } from '../../common/guards/rate-limit.guard';
@@ -73,8 +73,13 @@ export class ArizaController {
   @UseGuards(JwtAuthGuard)
   @RateLimit({ limit: 10, windowMs: 60_000 })
   @UseInterceptors(
-    FileInterceptor('image', {
-      limits: { fileSize: MAX_IMAGE_BYTES, files: 1 },
+    FileFieldsInterceptor(
+      [
+        { name: 'image', maxCount: 1 },
+        { name: 'images', maxCount: 4 },
+      ],
+      {
+      limits: { fileSize: MAX_IMAGE_BYTES, files: 5 },
       fileFilter: (_request, file, callback) => {
         const allowed = /^image\/(jpe?g|png|webp|heic|heif)$/i.test(file.mimetype);
         callback(
@@ -82,15 +87,20 @@ export class ArizaController {
           allowed,
         );
       },
-    }),
+      },
+    ),
   )
   @UsePipes(STRIP_UNKNOWN)
   async create(
     @Req() req: any,
     @Body() data: CreateArizaDto,
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFiles()
+    files: { image?: Express.Multer.File[]; images?: Express.Multer.File[] },
   ) {
-    return this.arizaService.create(req.user.id, data, file);
+    return this.arizaService.create(req.user.id, data, [
+      ...(files?.image ?? []),
+      ...(files?.images ?? []),
+    ]);
   }
 
   @Delete(':id')

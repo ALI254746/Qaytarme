@@ -224,6 +224,9 @@ export class Ariza extends Document {
   @Prop({ type: ImageSchema })
   image: Image;
 
+  @Prop({ type: [ImageSchema], default: [] })
+  images: Image[];
+
   @Prop({ type: SourceProvenanceSchema })
   provenance: SourceProvenanceValue;
 

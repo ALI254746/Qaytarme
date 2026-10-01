@@ -315,7 +315,7 @@ export default function MyItemsPage() {
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                   </Link>
                   <Link 
-                    href={`/desktop/item/${item._id}`}
+                    href={`/desktop/item/${item._id}?returnTo=${encodeURIComponent("/desktop/my-items")}`}
                     className="px-8 py-4 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 font-black text-xs uppercase tracking-widest rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-lg shadow-neutral-900/20 dark:shadow-white/10"
                   >
                     {t('btn_view')}

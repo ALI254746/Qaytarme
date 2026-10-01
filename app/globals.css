@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+.leaflet-container .leaflet-tile-pane {
+  filter: grayscale(1) contrast(0.94);
+}
+
 @theme {
   --color-mint: #A9D3C9;
   --color-ivory: #F7F6E2;
@@ -51,4 +55,3 @@ body {
 .animate-bounce-custom {
   animation: bounce 2s infinite;
 }
-

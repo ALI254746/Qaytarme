@@ -173,7 +173,10 @@ export class UsersController {
   }
 
   @Patch('notifications/:notificationId/read')
-  async markNotificationRead(@Req() req: any, @Body() body: { notificationId: string }) {
+  async markNotificationRead(
+    @Req() req: any,
+    @Param('notificationId') notificationId: string,
+  ) {
     const user = await this.usersService.findById(req.user.id);
     
     if (!user) {
@@ -182,7 +185,7 @@ export class UsersController {
 
     // Mark notification as read
     const notifications = user.notifications || [];
-    const notification = notifications.find((n: any) => n._id.toString() === body.notificationId);
+    const notification = notifications.find((n: any) => n._id.toString() === notificationId);
     
     if (notification) {
       notification.read = true;

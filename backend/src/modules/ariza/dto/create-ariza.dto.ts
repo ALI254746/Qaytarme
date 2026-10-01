@@ -1,4 +1,4 @@
-import { Transform, Type } from 'class-transformer';
+import { plainToInstance, Transform, Type } from 'class-transformer';
 import {
   IsIn,
   IsNumber,
@@ -40,6 +40,15 @@ function parseJsonObject(value: unknown): unknown {
   } catch {
     return undefined;
   }
+}
+
+function parseCoordinates(value: unknown): unknown {
+  const parsed = parseJsonObject(value);
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return parsed;
+  }
+
+  return plainToInstance(CoordinatesDto, parsed);
 }
 
 /**
@@ -120,9 +129,8 @@ export class CreateArizaDto {
   district?: string;
 
   @IsOptional()
-  @Transform(({ value }) => parseJsonObject(value))
+  @Transform(({ value }) => parseCoordinates(value))
   @ValidateNested()
-  @Type(() => CoordinatesDto)
   coordinates?: CoordinatesDto;
 }
 

@@ -7,6 +7,7 @@ import { useSession, signOut } from "next-auth/react";
 import { useTheme } from "@/context/ThemeContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { motion, AnimatePresence } from "framer-motion";
+import NotificationCenter from "@/app/components/NotificationCenter";
 
 export default function MobileLayout({ children }) {
   const pathname = usePathname();
@@ -16,12 +17,8 @@ export default function MobileLayout({ children }) {
   const { t, lang, changeLanguage } = useLanguage();
   const [activeTab, setActiveTab] = useState(pathname);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [notifications, setNotifications] = useState([]);
-  const [notificationsLoading, setNotificationsLoading] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
 
   const [mounted, setMounted] = useState(false);
 
@@ -34,42 +31,6 @@ export default function MobileLayout({ children }) {
   useEffect(() => {
     setMounted(true);
   }, []);
-
-  // Fetch notifications
-  useEffect(() => {
-    if (session?.user?.id) {
-        fetchNotifications();
-        // Poll every 30 seconds
-        const interval = setInterval(fetchNotifications, 30000);
-        return () => clearInterval(interval);
-    }
-  }, [session]);
-
-  const fetchNotifications = async () => {
-     try {
-        // Mock notifications for now or real API call
-        // const res = await fetch(`${getApiUrl()}/notifications/my?userId=${session.user.id}`);
-        // const data = await res.json();
-        
-        // Mock data
-        const mockData = [
-           { _id: '1', message: 'Sizning e\'loningiz "iPhone 13" tasdiqlandi', read: false, type: 'like', createdAt: new Date().toISOString() },
-           { _id: '2', message: 'Yangi xabar: Admin', read: true, type: 'admin_message', createdAt: new Date(Date.now() - 3600000).toISOString() }
-        ];
-        
-        setNotifications(mockData);
-        setUnreadCount(mockData.filter(n => !n.read).length);
-     } catch (err) {
-        console.error("Error fetching notifications:", err);
-     }
-  };
-
-  const markAllAsRead = async () => {
-      // API call to mark all as read
-      const updated = notifications.map(n => ({ ...n, read: true }));
-      setNotifications(updated);
-      setUnreadCount(0);
-  };
 
   const handleSearch = (e) => {
       if (e.key === 'Enter') {
@@ -142,100 +103,8 @@ export default function MobileLayout({ children }) {
                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
             </button>
 
-            {/* Notifications */}
-            <div className="relative">
-               <button 
-                  onClick={() => setShowNotifications(!showNotifications)}
-                  className={`w-8 h-8 flex items-center justify-center rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400 transition-colors relative active:scale-95 ${showNotifications ? 'bg-neutral-100 dark:bg-neutral-800 text-mint' : ''}`}
-               >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
-                  {unreadCount > 0 && (
-                     <span className="absolute top-1.5 right-2 w-1.5 h-1.5 bg-red-500 rounded-full border border-white dark:border-neutral-900 ring-1 ring-white dark:ring-neutral-900" />
-                  )}
-               </button>
+            <NotificationCenter compact />
 
-               <AnimatePresence>
-                  {showNotifications && (
-                     <>
-                        <div 
-                           className="fixed inset-0 w-screen h-screen z-40 bg-black/10 backdrop-blur-[2px] cursor-default" 
-                           onClick={(e) => {
-                              e.stopPropagation();
-                              setShowNotifications(false);
-                           }} 
-                        />
-                        <motion.div
-                           initial={{ opacity: 0, y: -20, scale: 0.95 }}
-                           animate={{ opacity: 1, y: 0, scale: 1 }}
-                           exit={{ opacity: 0, y: -20, scale: 0.95 }}
-                           transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                           className="fixed top-[56px] right-2 left-2 sm:left-auto sm:w-80 z-50 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-2xl rounded-2xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.2)] border border-neutral-200/50 dark:border-white/10 overflow-hidden"
-                        >
-                           <div className="px-4 py-3 border-b border-neutral-100 dark:border-white/5 flex items-center justify-between bg-white/50 dark:bg-white/5">
-                              <h3 className="font-bold text-xs dark:text-white flex items-center gap-2">
-                                 {t("notifications") || "Bildirishnomalar"}
-                                 {unreadCount > 0 && <span className="bg-mint text-neutral-900 text-[9px] font-black px-1.5 py-0.5 rounded-md">{unreadCount}</span>}
-                              </h3>
-                              {unreadCount > 0 && (
-                                 <button onClick={markAllAsRead} className="text-[9px] font-bold text-mint hover:underline">
-                                    {t("mark_all_read") || "O'qilgan qilish"}
-                                 </button>
-                              )}
-                           </div>
-                           
-                           <div className="max-h-[50vh] overflow-y-auto overflow-x-hidden">
-                              {notificationsLoading ? (
-                                 <div className="flex justify-center py-6">
-                                    <div className="w-5 h-5 border-2 border-mint border-t-transparent rounded-full animate-spin"/>
-                                 </div>
-                              ) : notifications.length > 0 ? (
-                                 <div className="divide-y divide-neutral-100 dark:divide-white/5">
-                                    {notifications.map((n) => (
-                                       <div key={n._id} className={`p-3 flex gap-3 hover:bg-neutral-50 dark:hover:bg-white/5 transition-colors ${!n.read ? 'bg-mint/5 dark:bg-mint/5' : ''}`}>
-                                           <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 border border-neutral-100 dark:border-white/5 ${!n.read ? 'bg-mint/10 text-mint' : 'bg-neutral-50 dark:bg-neutral-800 text-neutral-400'}`}>
-                                              {/* Icons based on type */}
-                                              {n.type === 'like' && (
-                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
-                                              )}
-                                              {n.type === 'friend_request' && (
-                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-                                              )}
-                                              {n.type === 'new-ariza' && (
-                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
-                                              )}
-                                              {n.type === 'admin_message' && (
-                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                                              )}
-                                              {/* Default/Other */}
-                                              {!['like', 'friend_request', 'new-ariza', 'admin_message'].includes(n.type) && (
-                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
-                                              )}
-                                           </div>
-                                           <div className="flex-1 min-w-0">
-                                              <p className={`text-[11px] leading-snug ${!n.read ? 'font-bold text-neutral-900 dark:text-white' : 'font-medium text-neutral-600 dark:text-neutral-400'}`}>
-                                                 {n.message}
-                                              </p>
-                                              <span className="text-[9px] text-neutral-400 mt-0.5 block">
-                                                 {new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                              </span>
-                                           </div>
-                                           {!n.read && <div className="w-1.5 h-1.5 rounded-full bg-mint mt-1.5 shrink-0" />}
-                                        </div>
-                                     ))}
-                                  </div>
-                              ) : (
-                                 <div className="py-8 flex flex-col items-center text-center text-neutral-400">
-                                    <svg className="w-8 h-8 mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
-                                    <p className="text-[10px] font-medium">{t("no_notifications") || "Yangi xabarlar yo'q"}</p>
-                                 </div>
-                              )}
-                           </div>
-                        </motion.div>
-                     </>
-                  )}
-               </AnimatePresence>
-            </div>
-            
             {/* Telegram Bot Link */}
             <button 
                onClick={() => window.open('https://t.me/qaytarme_app_bot', '_blank')}

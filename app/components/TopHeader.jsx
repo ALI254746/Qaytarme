@@ -8,14 +8,16 @@ import { useRouter } from "next/navigation";
 import { useTheme } from "../../context/ThemeContext";
 import { getApiUrl } from "@/lib/api-config";
 import LanguageSwitcher from "./LanguageSwitcher";
+import NotificationCenter from "./NotificationCenter";
 import { useLanguage } from "../../context/LanguageContext";
 
-export default function TopHeader() {
+export default function TopHeader({ compact = false }) {
   const { data: session, update } = useSession();
   const { isDarkMode, toggleTheme } = useTheme();
   const { t } = useLanguage();
   const router = useRouter();
   const [search, setSearch] = useState("");
+  const [headerProfile, setHeaderProfile] = useState(null);
   const [showMessages, setShowMessages] = useState(false);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
@@ -43,14 +45,10 @@ export default function TopHeader() {
   }, [session]);
   
   const [showMenu, setShowMenu] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({ name: "", phone: "" });
-  const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [notificationsLoading, setNotificationsLoading] = useState(false);
 
   // Admin Reply State
   const [replyModalOpen, setReplyModalOpen] = useState(false);
@@ -77,7 +75,6 @@ export default function TopHeader() {
   const handleReplyOpen = (senderId) => {
     setSelectedSenderId(senderId);
     setReplyModalOpen(true);
-    setShowNotifications(false);
   };
 
   const handleSendReply = async () => {
@@ -112,56 +109,39 @@ export default function TopHeader() {
         name: session.user.name || "",
         phone: session.user.phone || "",
       });
-      fetchNotifications();
-      
-      const notificationInterval = setInterval(fetchNotifications, 10000);
-      return () => clearInterval(notificationInterval);
     }
   }, [session]);
 
-  const fetchNotifications = async () => {
-    if (!session?.user?.accessToken) return;
-    
-    setNotificationsLoading(true);
-    try {
-      const res = await fetch(getApiUrl("users/notifications"), {
-        headers: {
-          "Authorization": `Bearer ${session.user.accessToken}`
-        }
-      });
-      
-      if (res.ok) {
-        const data = await res.json();
-        const notifs = data.notifications || [];
-        setNotifications(notifs.reverse()); // Show newest first
-        setUnreadCount(data.unreadCount || 0);
-      }
-    } catch (error) {
-      console.error("Notifications fetch error:", error);
-    } finally {
-      setNotificationsLoading(false);
+  useEffect(() => {
+    const accessToken = session?.user?.accessToken;
+    if (!accessToken) {
+      setHeaderProfile(null);
+      return;
     }
-  };
 
-  const markAllAsRead = async () => {
-    if (!session?.user?.accessToken) return;
-    
-    try {
-      const res = await fetch(getApiUrl("users/notifications/read-all"), {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${session.user.accessToken}`
+    const controller = new AbortController();
+    const fetchHeaderProfile = async () => {
+      try {
+        const response = await fetch(getApiUrl("users/me"), {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          throw new Error(`Profile request failed (${response.status})`);
         }
-      });
-      
-      if (res.ok) {
-        setUnreadCount(0);
-        setNotifications(notifications.map(n => ({ ...n, read: true })));
+
+        const profile = await response.json();
+        setHeaderProfile(profile);
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          console.error("Header profile fetch error:", error);
+        }
       }
-    } catch (error) {
-      console.error("Mark all read error:", error);
-    }
-  };
+    };
+
+    fetchHeaderProfile();
+    return () => controller.abort();
+  }, [session?.user?.accessToken]);
 
   const handleSaveProfile = async () => {
     setLoading(true);
@@ -214,18 +194,24 @@ export default function TopHeader() {
     }
   };
 
-  const userName = session?.user?.name || t("default_user_name");
+  const userName =
+    headerProfile?.name ||
+    session?.user?.name ||
+    session?.user?.email?.split("@")[0] ||
+    t("default_user_name");
   
-  // Get the most up-to-date image from session
-  const rawImage = session?.user?.image || session?.user?.avatar;
+  const rawImage =
+    headerProfile?.avatar ||
+    session?.user?.avatar ||
+    session?.user?.image;
   const userImage = rawImage 
     ? (rawImage.startsWith('http') ? rawImage : `${getApiUrl('').replace('/api', '')}${rawImage}`)
     : `https://api.dicebear.com/7.x/initials/svg?seed=${userName}`;
 
   return (
-    <header className="sticky top-0 z-[1100] h-16 lg:h-20 transition-colors duration-300">
-      <div className="absolute inset-0 bg-ivory/80 dark:bg-neutral-900/80 backdrop-blur-md border-b border-mint/20" />
-      <div className="relative h-full flex items-center justify-between px-4 lg:px-8">
+    <header className={`sticky top-0 z-[1100] transition-colors duration-300 ${compact ? "h-[42px]" : "h-[52px]"}`}>
+      <div className="absolute inset-0 border-b border-[#e5e5e5] bg-[#fafafa]/95 backdrop-blur-md" />
+      <div className={`relative flex h-full items-center ${compact ? "gap-3 px-5" : "gap-3 px-4"}`}>
       <AnimatePresence>
         {showMobileSearch && (
           <motion.div
@@ -260,8 +246,15 @@ export default function TopHeader() {
         )}
       </AnimatePresence>
 
+      {compact && (
+        <Link href="/desktop" className="inline-flex shrink-0 items-center gap-1.5 text-[11px] font-medium text-[#555] transition hover:text-[#171717]" aria-label="E’lonlar sahifasiga qaytish">
+          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m15 18-6-6 6-6M9 12h12" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          Ortga
+        </Link>
+      )}
+
       {/* Mobile Logo & Brand */}
-      <div className="flex lg:hidden items-center gap-2">
+      <div className={`items-center gap-2 md:hidden ${compact ? "hidden" : "flex"}`}>
         <div className="w-8 h-8 bg-gradient-to-br from-mint to-[#8bb3a9] rounded-lg flex items-center justify-center text-neutral-800 shadow-lg shadow-mint/20">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -271,8 +264,8 @@ export default function TopHeader() {
       </div>
 
       {/* Search - Hidden on very small screens, responsive on larger ones */}
-      <div className="hidden sm:flex flex-1 max-w-xl lg:ml-0 ml-4">
-        <div className="relative group w-full">
+      <div className={`hidden min-w-0 items-center sm:flex ${compact ? "flex-1 justify-end gap-2" : "flex-1 gap-3"}`}>
+        <div className={`relative group min-w-0 ${compact ? "w-full max-w-[160px]" : "w-full flex-1"}`}>
           <button 
             onClick={() => search.trim() && router.push(`/desktop?q=${encodeURIComponent(search)}`)}
             className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 group-focus-within:text-mint transition-colors"
@@ -287,13 +280,27 @@ export default function TopHeader() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={handleSearch}
-            className="w-full h-10 lg:h-12 pl-12 pr-4 bg-white/50 dark:bg-neutral-800/50 border-none rounded-xl lg:rounded-2xl text-sm focus:bg-white dark:focus:bg-neutral-800 focus:ring-2 focus:ring-mint transition-all outline-none dark:text-white"
+            className={`w-full border border-[#e1e1e1] bg-white text-xs text-[#333] placeholder:text-[#888] rounded-lg focus:border-[#999] focus:ring-2 focus:ring-[#777]/10 transition-all outline-none ${compact ? "h-7 pl-8 pr-3" : "h-10 pl-10 pr-4"}`}
           />
         </div>
+        {!compact && <Link
+          href="/desktop/map"
+          className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-[#e1e1e1] bg-white px-3 text-[11px] font-semibold text-[#333] transition hover:bg-[#f1f1f1]"
+          aria-label="Barcha hududlardagi e'lonlarni xaritada ko'rish"
+        >
+          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z" stroke="currentColor" strokeWidth="1.8" />
+            <circle cx="12" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.8" />
+          </svg>
+          Barcha hududlar
+          <svg className="h-3.5 w-3.5 text-[#777]" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="m7 10 5 5 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </Link>}
       </div>
 
       {/* Right Actions */}
-      <div className="flex items-center gap-2 lg:gap-4">
+      <div className={`ml-auto flex shrink-0 items-center ${compact ? "gap-1.5" : "gap-2"}`}>
         <button 
           onClick={() => setShowMobileSearch(true)}
           className="sm:hidden w-10 h-10 flex items-center justify-center bg-neutral-100/50 dark:bg-neutral-800/50 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
@@ -304,7 +311,7 @@ export default function TopHeader() {
         </button>
 
         {/* Chat Popover */}
-        <div className="relative">
+        <div className="relative hidden">
           <button 
             onClick={() => setShowMessages(!showMessages)}
             className="w-10 h-10 lg:w-11 lg:h-11 flex items-center justify-center bg-white/50 dark:bg-neutral-800/50 rounded-xl hover:bg-white dark:hover:bg-neutral-800 transition-colors"
@@ -375,133 +382,32 @@ export default function TopHeader() {
           </AnimatePresence>
         </div>
 
-        {/* Notifications */}
-        <div className="relative">
-          <button 
-            onClick={() => setShowNotifications(!showNotifications)}
-            className="relative w-10 h-10 lg:w-11 lg:h-11 flex items-center justify-center bg-white/50 dark:bg-neutral-800/50 rounded-xl hover:bg-white dark:hover:bg-neutral-800 transition-colors"
-          >
-            <svg className="w-5 h-5 text-neutral-600 dark:text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-            </svg>
-            {unreadCount > 0 && (
-              <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-mint rounded-full border-2 border-ivory dark:border-neutral-900 shadow-sm" />
-            )}
-          </button>
+        <NotificationCenter
+          compact={compact}
+          onAdminReply={
+            session?.user?.role === "admin" ? handleReplyOpen : undefined
+          }
+        />
 
-          <AnimatePresence>
-            {showNotifications && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
-                <motion.div
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl border border-neutral-100 dark:border-neutral-800 p-4 z-50 overflow-hidden"
-                >
-                    <div className="space-y-3 max-h-[300px] overflow-y-auto no-scrollbar">
-                      {notificationsLoading ? (
-                        <div className="p-4 text-center text-xs text-neutral-500 animate-pulse">{t("loading")}</div>
-                      ) : notifications.length > 0 ? (
-                        notifications.map((n) => (
-                          <div key={n._id} className={`p-3 rounded-xl border ${n.read ? 'bg-neutral-50 dark:bg-neutral-800/30 border-neutral-100 dark:border-neutral-800' : 'bg-mint/10 border-mint/20'}`}>
-                             <div className="flex flex-col gap-2 w-full">
-                                <div className="flex items-start gap-3">
-                                  <div className="mt-1 text-lg shrink-0">
-                                    {n.type === 'like' ? '❤️' : n.type === 'friend_request' ? '👥' : n.type === 'new-ariza' ? '📦' : n.type === 'admin_message' ? '📩' : '✨'}
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                     <p className="text-xs font-medium text-neutral-900 dark:text-white leading-relaxed break-words">{n.message}</p>
-                                     <span className="text-[10px] text-neutral-400 mt-1 block">
-                                       {new Date(n.createdAt).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}
-                                     </span>
-                                  </div>
-                                </div>
-                                {n.type === 'admin_message' && session?.user?.role === 'admin' && n.from && (
-                                   <button 
-                                      onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleReplyOpen(n.from);
-                                      }}
-                                      className="self-end px-3 py-1 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-[10px] font-bold uppercase tracking-wider rounded-lg hover:scale-105 transition-transform"
-                                   >
-                                      {t("reply")}
-                                   </button>
-                                )}
-                             </div>
-                          </div>
-                        ))
-                      ) : (
-                         <div className="p-8 text-center bg-neutral-50 dark:bg-neutral-800/30 rounded-2xl border border-dashed border-neutral-200 dark:border-neutral-800">
-                           <div className="text-2xl mb-2">📭</div>
-                           <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">{t("no_messages_yet")}</p>
-                        </div>
-                      )}
-                    </div>
-                    
-                    {unreadCount > 0 && (
-                      <button 
-                        onClick={markAllAsRead}
-                        className="w-full mt-4 py-2 text-[10px] font-black text-mint uppercase tracking-widest border border-mint/20 rounded-xl hover:bg-mint hover:text-neutral-800 transition-all"
-                      >
-                        {t("mark_all_read")}
-                      </button>
-                    )}
-                </motion.div>
-              </>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* Desktop Actions */}
-        <div className="hidden lg:flex items-center gap-4">
-          <LanguageSwitcher />
-
-          {/* Theme Toggle */}
-          <button 
-            onClick={toggleTheme}
-            type="button"
-            className="w-11 h-11 flex items-center justify-center bg-neutral-100/50 dark:bg-neutral-800/50 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
-          >
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={isDarkMode ? 'dark' : 'light'}
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                exit={{ y: -20, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-              >
-                {isDarkMode ? (
-                  <svg className="w-5 h-5 text-mint" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" />
-                  </svg>
-                ) : (
-                  <svg className="w-5 h-5 text-neutral-600 dark:text-neutral-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
-                  </svg>
-                )}
-              </motion.div>
-            </AnimatePresence>
-          </button>
-
-         
-
-          {/* User Profile */}
+        {/* Desktop Profile */}
+        <div className="hidden items-center gap-2 md:flex">
           <button onClick={() => setShowProfile(true)} className="text-left">
-            <div className="flex items-center gap-3 pl-2 cursor-pointer group">
-              <div className="text-right">
-                <h4 className="text-sm font-bold text-neutral-900 dark:text-white group-hover:text-mint transition-colors truncate max-w-[150px]">{userName}</h4>
-                <p className="text-[10px] font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">{t("user_role_user")}</p>
+            <div className="flex cursor-pointer items-center gap-2 pl-1 group">
+              <div className={`text-right ${compact ? "hidden" : "hidden md:block"}`}>
+                <h4 className="max-w-[150px] truncate text-xs font-semibold text-[#333]">{userName}</h4>
               </div>
-              <div className="w-11 h-11 rounded-xl bg-mint flex items-center justify-center border-2 border-ivory dark:border-neutral-800 shadow-sm group-hover:shadow-md transition-all overflow-hidden">
+              <div className={`overflow-hidden rounded-full border border-[#dedede] bg-[#e5e5e5] transition group-hover:border-[#999] ${compact ? "h-7 w-7" : "h-9 w-9"}`}>
                  <img src={userImage} alt="avatar" className="w-full h-full object-cover" />
               </div>
+              <svg className="h-3.5 w-3.5 text-[#666]" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="m7 10 5 5 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </div>
           </button>
         </div>
 
         {/* Mobile Menu Button & Popover */}
-        <div className="lg:hidden relative">
+        <div className="md:hidden relative">
           <button 
             onClick={() => setShowMenu(!showMenu)}
             className="w-10 h-10 flex items-center justify-center bg-neutral-100/50 dark:bg-neutral-800/50 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
@@ -614,16 +520,19 @@ export default function TopHeader() {
 
                       <div className="h-px bg-neutral-100 dark:bg-neutral-800" />
 
-                      {/* Language Switcher Section */}
-                      <div>
-                         <h4 className="text-[9px] font-black text-neutral-400 uppercase tracking-widest mb-2">{t("select_language")}</h4>
-                         <div className="grid grid-cols-3 gap-2">
-                             {/* Note: Ideally use the LanguageSwitcher component here or logic, but for UI match: */}
-                             <button className="px-2 py-1.5 rounded-lg bg-mint text-neutral-900 font-bold text-[10px] border border-mint shadow-sm">UZ</button>
-                             <button className="px-2 py-1.5 rounded-lg bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 font-bold text-[10px] border border-neutral-200 dark:border-neutral-700 hover:border-mint transition-colors">RU</button>
-                             <button className="px-2 py-1.5 rounded-lg bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 font-bold text-[10px] border border-neutral-200 dark:border-neutral-700 hover:border-mint transition-colors">EN</button>
-                         </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">{t("select_language")}</span>
+                        <LanguageSwitcher />
                       </div>
+
+                      <button
+                        type="button"
+                        onClick={toggleTheme}
+                        className="flex w-full items-center justify-between rounded-xl border border-neutral-200 px-3 py-2 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                      >
+                        <span>{isDarkMode ? t("theme_light") : t("theme_dark")}</span>
+                        <span aria-hidden="true">{isDarkMode ? "☼" : "◐"}</span>
+                      </button>
 
                       {/* Quick Links */}
                       <div>

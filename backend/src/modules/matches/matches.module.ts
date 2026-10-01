@@ -5,12 +5,14 @@ import { MatchesService } from './matches.service';
 import { MatchesController } from './matches.controller';
 import { Match, MatchSchema } from '../../schemas/match.schema';
 import { Ariza, ArizaSchema } from '../../schemas/ariza.schema';
+import { User, UserSchema } from '../../schemas/user.schema';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: Match.name, schema: MatchSchema },
       { name: Ariza.name, schema: ArizaSchema },
+      { name: User.name, schema: UserSchema },
     ]),
   ],
   providers: [MatchesService],

@@ -1,553 +1,420 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import { motion, AnimatePresence, useMotionValue, useTransform } from "framer-motion";
+import React, { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { buildArizaListUrl } from "@/lib/ariza-api";
 import { useSearchParams } from "next/navigation";
 import { useLanguage } from "@/context/LanguageContext";
 
-// --- BRAND COLORS (PREMIUM LIGHT) ---
-// Mint:      #A9D3C9
-// Ivory:     #F7F6E2
-// Obsidian:  #2E2D2B
+const PAGE_SIZE = 6;
 
 const CATEGORIES = [
-  { id: "all", icon: "🔍" },
-  { id: "tech", labelId: "electronics", icon: "💻" },
-  { id: "docs", labelId: "documents", icon: "📄" },
-  { id: "wallet", labelId: "bags", icon: "💼" },
-  { id: "clothing", icon: "👕" },
-  { id: "jewelry", labelId: "accessories", icon: "⌚" },
-  { id: "keys", icon: "🔑" },
-  { id: "vehicle", labelId: "automotive", icon: "🚗" },
-  { id: "toys", labelId: "kids", icon: "🧸" },
-  { id: "sports", icon: "⚽" },
-  { id: "books", icon: "📚" },
-  { id: "pets", icon: "🐾" },
-  { id: "home", icon: "🏠" },
-  { id: "tools", icon: "🛠️" },
-  { id: "food", icon: "🥤" },
+  { id: "all", labelId: "all", icon: "⌕" },
+  { id: "docs", labelId: "documents", icon: "▤" },
+  { id: "tech", labelId: "electronics", icon: "▣" },
+  { id: "keys", labelId: "keys", icon: "⚿" },
+  { id: "wallet", labelId: "bags", icon: "▱" },
+  { id: "clothing", labelId: "clothing", icon: "⌑" },
+  { id: "jewelry", labelId: "accessories", icon: "◷" },
+  { id: "vehicle", labelId: "automotive", icon: "⌑" },
+  { id: "toys", labelId: "kids", icon: "♧" },
+  { id: "sports", labelId: "sports", icon: "◉" },
+  { id: "books", labelId: "books", icon: "▤" },
+  { id: "pets", labelId: "pets", icon: "♧" },
+  { id: "home", labelId: "home", icon: "⌂" },
+  { id: "tools", labelId: "tools", icon: "⚒" },
+  { id: "food", labelId: "food", icon: "•••" },
 ];
 
-const ItemSkeleton = () => (
-  <div className="bg-white dark:bg-neutral-900 rounded-[2rem] border border-[#2E2D2B]/5 dark:border-white/5 shadow-sm overflow-hidden animate-pulse h-[350px]">
-    <div className="h-48 bg-[#2E2D2B]/5 dark:bg-white/5" />
-    <div className="p-5 space-y-3">
-      <div className="flex justify-between">
-        <div className="h-4 w-24 bg-[#2E2D2B]/5 dark:bg-white/5 rounded-full" />
-        <div className="h-4 w-16 bg-[#2E2D2B]/5 dark:bg-white/5 rounded-full" />
-      </div>
-      <div className="h-6 w-3/4 bg-[#2E2D2B]/5 dark:bg-white/5 rounded-xl" />
-      <div className="h-4 w-full bg-[#2E2D2B]/5 dark:bg-white/5 rounded-xl" />
-    </div>
-  </div>
-);
+function SearchIcon({ className = "h-4 w-4" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="10.8" cy="10.8" r="6.8" stroke="currentColor" strokeWidth="2" />
+      <path d="m16 16 5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
 
-const FilterButton = ({ label, icon, active, onClick }) => (
-  <button
-    onClick={onClick}
-    className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 whitespace-nowrap flex-shrink-0 snap-center border flex items-center gap-2 ${
-      active
-        ? "bg-[#A9D3C9] text-[#2E2D2B] border-[#A9D3C9] shadow-lg shadow-[#A9D3C9]/20 scale-105"
-        : "bg-white dark:bg-neutral-800 text-[#2E2D2B]/60 dark:text-white/60 hover:bg-[#A9D3C9] hover:text-[#2E2D2B] border-[#2E2D2B]/5 dark:border-[#A9D3C9]/50 dark:shadow-[0_0_15px_-5px_rgba(169,211,201,0.3)]"
-    }`}
-  >
-    <span className="text-base">{icon}</span>
-    {label}
-  </button>
-);
+function getOptimizedImageUrl(imageUrl) {
+  if (!imageUrl) return null;
+  if (!imageUrl.includes("res.cloudinary.com/") || !imageUrl.includes("/image/upload/")) {
+    return imageUrl;
+  }
 
-const ItemCard = ({ item }) => {
-  const { t } = useLanguage();
-  const displayLocation = item.location || `${item.region || ""}${item.district ? `, ${item.district}` : ""}`;
+  return imageUrl.replace("/image/upload/", "/image/upload/f_auto,q_auto,w_900,c_limit/");
+}
 
-  // Time Ago Helper
-  const timeAgo = (dateStr) => {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diff = (now - date) / 1000; // seconds
-    
-    if (diff < 60) return t("time_just_now");
-    if (diff < 3600) return `${Math.floor(diff / 60)} ${t("time_min_ago")}`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)} ${t("time_hour_ago")}`;
-    if (diff < 604800) return `${Math.floor(diff / 86400)} ${t("time_day_ago")}`;
-    return date.toLocaleDateString();
-  };
+function formatDisplayDate(dateValue) {
+  const parts = new Intl.DateTimeFormat("uz-UZ", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(dateValue));
+  const dateParts = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+  return `${dateParts.day}.${dateParts.month}.${dateParts.year}`;
+}
+
+function ItemCard({ item, t }) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const imageUrl = typeof item.image === "string" ? item.image : item.image?.url;
+  const optimizedImageUrl = getOptimizedImageUrl(imageUrl);
+  const location = item.location || [item.region, item.district].filter(Boolean).join(", ");
+  const categoryOption = CATEGORIES.find((option) => option.id === item.category);
+  const category = t(`cat_${categoryOption?.labelId || "food"}`);
+  const createdAt = item.createdAt ? formatDisplayDate(item.createdAt) : "";
 
   return (
-    <Link href={`/desktop/item/${item._id}`}>
-      <motion.div
-        layout
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        whileHover={{ y: -8, scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
-        className="bg-white dark:bg-neutral-900 rounded-[2rem] border border-[#2E2D2B]/5 dark:border-white/5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_40px_rgb(0,0,0,0.08)] overflow-hidden group cursor-pointer transition-all duration-500 h-full flex flex-col relative"
-      >
-        {/* Image Section */}
-        <div className="relative h-64 overflow-hidden">
-          {(() => {
-            let imageUrl = item.image?.url || (typeof item.image === 'string' ? item.image : null);
-            
-            // Force HTTPS if it's a Cloudinary URL
-            if (imageUrl && imageUrl.startsWith('http:')) {
-                imageUrl = imageUrl.replace('http:', 'https:');
-            }
-            
-            // Debug log (remove later)
-            console.log('Rendering Image:', { id: item._id, raw: item.image, final: imageUrl });
-
-            const categoryIcons = {
-              electronics: "💻",
-              documents: "📄",
-              personal: "💼",
-              clothing: "👕",
-              accessories: "⌚",
-              keys: "🔑", 
-              bags: "🎒",
-              automotive: "🚗",
-              kids: "🧸",
-              sports: "⚽",
-              books: "📚",
-              pets: "🐾",
-              other: "📦",
-              all: "🔍"
-            };
-
-            // Smart Text Analysis
-            const getSmartIcon = () => {
-               const text = (item.itemType + " " + (item.itemName || "")).toLowerCase();
-               
-               if (text.match(/iphone|samsung|redmi|xiaomi|telefon|tel/)) return "📱";
-               if (text.match(/macbook|laptop|noutbuk|kompyuter/)) return "💻";
-               if (text.match(/airpods|naushnik|quloqchin|buds/)) return "🎧";
-               if (text.match(/pasport|passport/)) return "🛂";
-               if (text.match(/prava|guvohnoma|id karta|card|karta/)) return "🪪";
-               if (text.match(/sumka|bag|ryukzak/)) return "🎒";
-               if (text.match(/hamyon|kashalok|wallet/)) return "👛";
-               if (text.match(/soat|watch/)) return "⌚";
-               if (text.match(/mashina|avto|spark|gentra|cobalt|malibu/)) return "🚗";
-               if (text.match(/kalit|key/)) return "🔑";
-               if (text.match(/kuchuk|it|dog/)) return "🐕";
-               if (text.match(/mushuk|cat/)) return "🐈";
-               if (text.match(/velosiped|velik/)) return "🚲";
-               
-               return categoryIcons[item.category] || "📦";
-            };
-
-            const fallbackIcon = getSmartIcon();
-
-            return imageUrl ? (
-              <img
-                src={imageUrl}
-                alt={item.itemType}
-                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                onError={(e) => { 
-                    console.error('Image Load Error:', imageUrl);
-                    e.currentTarget.style.display = 'none'; 
-                    e.currentTarget.nextSibling.style.display = 'flex'; 
-                }}
-              />
-            ) : (
-                <div className={`w-full h-full flex flex-col items-center justify-center text-6xl relative overflow-hidden ${
-                   item.status === 'lost' ? 'bg-red-50 dark:bg-red-900/20' : 'bg-[#A9D3C9]/20 dark:bg-[#A9D3C9]/10'
-                }`}>
-                   <div className="absolute inset-0 opacity-10 bg-[url('https://grainy-gradients.vercel.app/noise.svg')]"></div>
-                   <motion.div 
-                     initial={{ scale: 0.5, opacity: 0 }}
-                     animate={{ scale: 1, opacity: 1 }}
-                     transition={{ type: "spring", stiffness: 200 }}
-                     className="z-10 drop-shadow-2xl grayscale-[0.2] group-hover:scale-110 transition-transform duration-500"
-                   >
-                      {fallbackIcon}
-                   </motion.div>
-                </div>
-            );
-          })()}
-          
-          {/* Fallback container */}
-          <div className="hidden absolute inset-0 w-full h-full bg-[#F7F6E2] dark:bg-neutral-800 items-center justify-center text-5xl opacity-50">
-             📦
-          </div>
-          
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80" />
-
-          {/* Status Badge */}
-          <div className="absolute top-4 left-4">
-            <div className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg backdrop-blur-md border border-white/20 ${
-              item.status === 'lost' 
-                ? 'bg-red-500 text-white' 
-                : 'bg-mint text-[#2E2D2B]'
-            }`}>
-              {item.status === 'lost' ? t("filter_lost") : t("filter_found")}
+    <article className="group overflow-hidden rounded-xl border border-[#dedede] bg-white transition hover:border-[#bcbcbc] hover:shadow-md">
+      <Link href={`/desktop/item/${item._id}?returnTo=${encodeURIComponent("/desktop")}`} className="block">
+        <div className="relative aspect-[3/1] overflow-hidden bg-[#e7e7e7]">
+          {optimizedImageUrl && !imageFailed ? (
+            <img
+              src={optimizedImageUrl.startsWith("http:") ? optimizedImageUrl.replace("http:", "https:") : optimizedImageUrl}
+              alt={item.itemType || ""}
+              className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+              loading="lazy"
+              decoding="async"
+              onError={() => setImageFailed(true)}
+            />
+          ) : (
+            <div className="grid h-full place-items-center bg-gradient-to-br from-[#e4e4e4] to-[#f1f1f1] text-4xl text-[#888]">
+              {item.category === "tech" ? "▣" : item.category === "keys" ? "⚿" : item.category === "docs" ? "▤" : "□"}
             </div>
-          </div>
-
-          {/* Category Badge */}
-           <div className="absolute top-4 right-4 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10">
-             <span className="text-[10px] font-bold text-white uppercase tracking-wider">{item.itemType}</span>
-           </div>
-           
-           {/* Date & Location Overlay */}
-           <div className="absolute bottom-4 left-4 right-4 flex flex-col gap-1">
-              <div className="flex items-center gap-2 text-white/90">
-                  <svg className="w-4 h-4 shrink-0 text-mint" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                  <span className="text-xs font-bold">{timeAgo(item.createdAt)}</span>
+          )}
+          <span
+            className={`absolute left-3 top-3 rounded-full px-2.5 py-1 text-[10px] font-bold text-white ${
+              item.status === "lost" ? "bg-[#686868]" : "bg-[#aaa]"
+            }`}
+          >
+            {item.status === "lost" ? t("filter_lost") : t("filter_found")}
+          </span>
+          <span className="absolute right-3 top-3 grid h-7 w-7 place-items-center rounded-md border border-[#dedede] bg-white/95 text-[#555]" aria-hidden="true">
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
+              <path d="M6 4.8A1.8 1.8 0 0 1 7.8 3h8.4A1.8 1.8 0 0 1 18 4.8V21l-6-3.7L6 21V4.8Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+            </svg>
+          </span>
+        </div>
+        <div className="flex min-h-[66px] items-center justify-between gap-2 px-3 py-1 [@media(max-height:680px)]:min-h-[60px] [@media(max-height:680px)]:py-0.5">
+          <div className="min-w-0">
+            <h3 className="truncate text-sm font-bold leading-4 text-[#202020]">{item.itemType || t("cat_food")}</h3>
+            <div className="mt-1 flex items-center gap-1.5 text-[10px] leading-3 text-[#777]">
+              <span aria-hidden="true">▧</span>
+              <span className="truncate">{category}</span>
+            </div>
+            {location && (
+              <div className="mt-0.5 flex items-center gap-1.5 text-[10px] leading-3 text-[#777]">
+                <span aria-hidden="true">⌖</span>
+                <span className="truncate">{location}</span>
               </div>
-              {displayLocation && (
-                <div className="flex items-center gap-2 text-white">
-                    <svg className="w-4 h-4 shrink-0 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                    <span className="text-sm font-black truncate">{displayLocation}</span>
-                </div>
-              )}
-           </div>
-        </div>
-
-        {/* Content Section */}
-        <div className="p-6 flex-1 flex flex-col relative z-10">
-          <h3 className="text-xl font-black text-[#2E2D2B] dark:text-white mb-2 line-clamp-1 group-hover:text-mint transition-colors">
-             {item.itemType}
-          </h3>
-          <p className="text-sm text-[#2E2D2B]/60 dark:text-white/60 line-clamp-2 mb-6 font-medium leading-relaxed">
-            {item.itemDescription || t("no_description")}
-          </p>
-          
-          <div className="mt-auto pt-4 border-t border-[#2E2D2B]/5 dark:border-white/5 flex items-center justify-between gap-3">
-             <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-[#F7F6E2] dark:bg-neutral-800 p-0.5 shadow-sm">
-                   <div className="w-full h-full rounded-full overflow-hidden flex items-center justify-center bg-mint text-xs font-black text-[#2E2D2B]">
-                      {item.user?.avatar ? <img src={item.user.avatar} alt="" className="w-full h-full object-cover" /> : (item.user?.name?.charAt(0) || "U")}
-                   </div>
-                </div>
-                <div className="flex flex-col">
-                   <span className="text-xs font-black text-[#2E2D2B] dark:text-white uppercase tracking-wider line-clamp-1">{item.user?.name || t("default_user_name")}</span>
-                   <span className="text-[10px] text-[#2E2D2B]/40 dark:text-white/40 font-bold">{t("author")}</span>
-                </div>
-             </div>
-             
-             <button className="w-10 h-10 rounded-full bg-neutral-50 dark:bg-neutral-800 flex items-center justify-center text-neutral-400 hover:bg-mint hover:text-neutral-900 transition-colors">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-             </button>
+            )}
+            {createdAt && (
+              <div className="mt-0.5 flex items-center gap-1.5 text-[10px] leading-3 text-[#777]">
+                <span aria-hidden="true">▦</span>
+                <span>{createdAt}</span>
+              </div>
+            )}
           </div>
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-[#dedede] px-2.5 py-2 text-[10px] font-semibold text-[#333] transition group-hover:border-[#999]">
+            Batafsil <span aria-hidden="true">→</span>
+          </span>
         </div>
-      </motion.div>
-    </Link>
+      </Link>
+    </article>
   );
-};
+}
+
+function SelectIcon() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="m7 10 5 5 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 export default function DashboardPage() {
   const { data: session } = useSession();
   const searchParams = useSearchParams();
   const searchQuery = searchParams.get("q") || "";
   const { t, lang } = useLanguage();
-  
+
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState("");
   const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
+  const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
   const [filter, setFilter] = useState("all");
-  const [category, setCategory] = useState("all"); 
-  
-  const scrollRef = useRef(null);
-  const [isAutoScrolling, setIsAutoScrolling] = useState(true);
-  const scrollProgress = useMotionValue(0);
+  const [category, setCategory] = useState("all");
+  const [sortOrder, setSortOrder] = useState("newest");
 
   useEffect(() => {
-    const scrollContainer = scrollRef.current;
-    if (!scrollContainer) return;
-
-    let animationFrameId;
-    
-    const scroll = () => {
-      if (scrollContainer) {
-        if (isAutoScrolling) {
-           scrollContainer.scrollLeft += 0.5; // Slow speed
+    const controller = new AbortController();
+    const fetchItems = async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const url = buildArizaListUrl({
+          page,
+          limit: PAGE_SIZE,
+          search: searchQuery,
+          status: filter,
+          category,
+          lang,
+        });
+        const response = await fetch(url, { signal: controller.signal });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.message || "E'lonlarni yuklashda xatolik yuz berdi.");
         }
-        
-        // Reset if scrolled past one-third 
-        const singleSetWidth = scrollContainer.scrollWidth / 3;
-        if (scrollContainer.scrollLeft >= singleSetWidth * 2) {
-           scrollContainer.scrollLeft = singleSetWidth;
-        } else if (scrollContainer.scrollLeft <= 0) {
-            scrollContainer.scrollLeft = singleSetWidth;
+        setItems(data.arizalar || []);
+        setTotal(Number(data.total) || 0);
+        setHasMore(Boolean(data.hasMore));
+      } catch (fetchError) {
+        if (fetchError.name !== "AbortError") {
+          console.error("Error fetching items:", fetchError);
+          setItems([]);
+          setError(fetchError.message || "E'lonlarni yuklashda xatolik yuz berdi.");
         }
-
-        const maxScroll = scrollContainer.scrollWidth - scrollContainer.clientWidth;
-        if (maxScroll > 0) {
-           scrollProgress.set(scrollContainer.scrollLeft / maxScroll);
-        }
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
       }
-      animationFrameId = requestAnimationFrame(scroll);
     };
 
-    animationFrameId = requestAnimationFrame(scroll);
+    fetchItems();
+    return () => controller.abort();
+  }, [page, searchQuery, filter, category, lang]);
 
-    return () => cancelAnimationFrame(animationFrameId);
-  }, [isAutoScrolling, scrollProgress]);
+  const sortedItems = [...items].sort((first, second) => {
+    const firstDate = new Date(first.createdAt || 0).getTime();
+    const secondDate = new Date(second.createdAt || 0).getTime();
+    return sortOrder === "oldest" ? firstDate - secondDate : secondDate - firstDate;
+  });
+  const pageCount = total > 0 ? Math.ceil(total / PAGE_SIZE) : hasMore ? page + 1 : page;
+  const visiblePageCount = Math.min(pageCount, 5);
+  const firstVisiblePage = Math.min(
+    Math.max(page - 2, 1),
+    Math.max(pageCount - visiblePageCount + 1, 1),
+  );
+  const pageNumbers = Array.from(
+    { length: visiblePageCount },
+    (_, index) => firstVisiblePage + index,
+  );
+  const userName = session?.user?.name || t("default_user_name");
 
-  // Intersection Observer 
-  const observer = useRef();
-  const lastItemRef = useCallback(node => {
-     if (loading || loadingMore) return;
-     if (observer.current) observer.current.disconnect();
-     observer.current = new IntersectionObserver(entries => {
-        if (entries[0].isIntersecting && hasMore) {
-           setPage(prev => prev + 1);
-        }
-     });
-     if (node) observer.current.observe(node);
-  }, [loading, loadingMore, hasMore]);
-
-  // Reset and fetch when query/filter changes
-  useEffect(() => {
-     setItems([]);
-     setPage(1);
-     setHasMore(true);
-     fetchItems(1, true);
-  }, [searchQuery, filter, category, lang]);
-
-  // Fetch more 
-  useEffect(() => {
-     if (page > 1) fetchItems(page, false);
-  }, [page]);
-
-  const fetchItems = async (pageNum, isNew) => {
-     try {
-        if (isNew) setLoading(true);
-        else setLoadingMore(true);
-
-        const url = buildArizaListUrl({
-           page: pageNum,
-           limit: 24,
-           search: searchQuery,
-           status: filter,
-           category,
-           lang,
-        });
-
-        console.log('Frontend Fetching Items URL:', url);
-        console.log('Frontend Selected Category:', category);
-
-        const res = await fetch(url);
-        const data = await res.json();
-
-        if (res.ok) {
-           const newItems = data.arizalar || [];
-           setItems(prev => isNew ? newItems : [...prev, ...newItems]);
-           // Backend returns hasMore directly - use it if available, otherwise check if we got a full page
-           const hasMoreItems = data.hasMore !== undefined 
-              ? data.hasMore 
-              : newItems.length >= 24;
-           console.log('Pagination:', { 
-              page: pageNum, 
-              itemsReceived: newItems.length, 
-              hasMore: data.hasMore, 
-              calculatedHasMore: hasMoreItems,
-              total: data.total 
-           });
-           setHasMore(hasMoreItems);
-        }
-     } catch (err) {
-        console.error("Error fetching items:", err);
-     } finally {
-        setLoading(false);
-        setLoadingMore(false);
-     }
+  const resetFilters = () => {
+    setFilter("all");
+    setCategory("all");
+    setSortOrder("newest");
+    setPage(1);
   };
 
-
   return (
-    <div className="space-y-8 animate-in fade-in duration-700 pb-20 bg-[#F7F6E2] dark:bg-black min-h-screen">
-      {/* Welcome Banner */}
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="relative p-8 lg:p-12 rounded-[2.5rem] bg-white dark:bg-neutral-900 overflow-hidden shadow-2xl shadow-[#2E2D2B]/5 dark:shadow-white/5 min-h-[300px] flex items-center group border border-[#2E2D2B]/5 dark:border-white/5"
-      >
-        {/* Animated Background */}
-        <div className="absolute inset-0">
-           <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#A9D3C9]/30 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2 group-hover:scale-110 transition-transform duration-1000" />
-           <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-[#2E2D2B]/5 rounded-full blur-[80px] translate-y-1/2 -translate-x-1/2 group-hover:scale-125 transition-transform duration-1000" />
-           <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20  mix-blend-soft-light"></div>
+    <div className="bg-[#f7f7f7] pb-2 text-[#1c1c1c]">
+      <section className="mb-1 flex flex-col justify-between gap-2 rounded-xl border border-[#e2e2e2] bg-[#f0f0f0] px-4 py-3 sm:flex-row sm:items-center sm:px-5 [@media(max-height:680px)]:py-2">
+        <div className="min-w-0">
+          <h1 className="text-xl font-extrabold tracking-tight sm:text-2xl">Xush kelibsiz, {userName}</h1>
+          <p className="mt-1 text-xs text-[#727272] sm:text-sm">
+            Yo&apos;qolgan buyumingizni qidiring yoki topilgan buyum haqida e&apos;lon bering.
+          </p>
         </div>
-        
-        <div className="relative z-10 w-full flex flex-col lg:flex-row justify-between items-center gap-10">
-          <div className="text-center lg:text-left">
-            <motion.div 
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
+        <div className="flex shrink-0 gap-2">
+          <Link
+            href="/desktop/add"
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-[#555] bg-white px-3 text-xs font-semibold transition hover:bg-[#e9e9e9]"
+          >
+            <span aria-hidden="true">⌕</span> Buyum yo&apos;qoldi
+          </Link>
+          <Link
+            href="/desktop/add"
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[#222] px-3 text-xs font-semibold text-white transition hover:bg-[#444]"
+          >
+            <span aria-hidden="true">＋</span> Buyum topildi
+          </Link>
+        </div>
+      </section>
+
+      <section className="mb-2 rounded-xl border border-[#e2e2e2] bg-white px-3 py-2 [@media(max-height:680px)]:py-1">
+        <div className="flex flex-wrap items-center gap-2.5 border-b border-[#ededed] pb-2 [@media(max-height:680px)]:gap-2 [@media(max-height:680px)]:pb-1">
+          <div className="flex rounded-lg bg-[#f0f0f0] p-1">
+            {[
+              { id: "all", label: t("filter_all") || "Barchasi" },
+              { id: "lost", label: t("filter_lost") || "Yo'qolgan" },
+              { id: "found", label: t("filter_found") || "Topilgan" },
+            ].map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => {
+                  setFilter(option.id);
+                  setPage(1);
+                }}
+                className={`rounded-md px-3 py-1.5 text-[11px] font-semibold transition [@media(max-height:680px)]:py-1 ${
+                  filter === option.id ? "bg-[#666] text-white shadow-sm" : "text-[#555] hover:bg-white"
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+
+          <label className="relative flex h-9 min-w-[140px] items-center justify-between gap-5 rounded-lg border border-[#e0e0e0] px-3 text-[11px] font-medium text-[#444]">
+            <span>{category === "all" ? "Kategoriya" : t(`cat_${CATEGORIES.find((option) => option.id === category)?.labelId}`)}</span>
+            <select
+              value={category}
+              onChange={(event) => {
+                setCategory(event.target.value);
+                setPage(1);
+              }}
+              aria-label="Kategoriya bo'yicha filtrlash"
+              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
             >
-              <h1 className="text-3xl md:text-5xl lg:text-6xl font-black text-[#2E2D2B] dark:text-white mb-6 leading-tight tracking-tight">
-                {t("hero_title_1")} <span className="text-[#A9D3C9]">{t("hero_title_2")}</span>
-              </h1>
-              <p className="text-[#2E2D2B]/60 dark:text-white/60 max-w-lg text-sm md:text-lg font-medium leading-relaxed">
-                {t("hero_desc")}
-              </p>
-            </motion.div>
-          </div>
-
-          <div className="hidden md:grid grid-cols-2 gap-3 lg:gap-4 shrink-0">
-             {[
-               { val: "2.4k+", lab: t("stat_found"), bg: "bg-white/60 dark:bg-neutral-900/60" },
-               { val: "850+", lab: t("stat_returned"), bg: "bg-[#A9D3C9]/30 dark:bg-[#A9D3C9]/10" },
-               { val: "10k+", lab: t("stat_users"), bg: "bg-white/60 dark:bg-neutral-900/60 col-span-2" }
-             ].map((s, i) => (
-                <motion.div 
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.5 + (i * 0.1) }}
-                  key={i} 
-                  className={`${s.bg} backdrop-blur-md border border-[#2E2D2B]/5 dark:border-[#A9D3C9]/50 p-3 lg:p-6 rounded-3xl lg:rounded-[2rem] text-center shadow-xl shadow-[#2E2D2B]/5 dark:shadow-[#A9D3C9]/20 hover:scale-105 transition-transform cursor-default flex flex-col justify-center items-center`}
-                >
-                   <div className="text-xl lg:text-3xl font-black text-[#2E2D2B] dark:text-white mb-0.5 lg:mb-1 drop-shadow-sm">{s.val}</div>
-                   <div className="text-[8px] lg:text-[10px] uppercase font-bold text-[#2E2D2B]/50 dark:text-[#A9D3C9] tracking-widest">{s.lab}</div>
-                </motion.div>
-             ))}
-          </div>
+              {CATEGORIES.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.id === "all" ? t("filter_all") : t(`cat_${option.labelId}`)}
+                </option>
+              ))}
+            </select>
+            <span className="pointer-events-none"><SelectIcon /></span>
+          </label>
+          <label className="flex h-9 min-w-[130px] items-center justify-between gap-5 rounded-lg border border-[#e0e0e0] px-3 text-[11px] font-medium text-[#444]">
+            <span>Sana</span>
+            <select
+              value={sortOrder}
+              onChange={(event) => setSortOrder(event.target.value)}
+              aria-label="Sana bo'yicha tartiblash"
+              className="h-full min-w-0 flex-1 bg-transparent text-right outline-none"
+            >
+              <option value="newest">Eng yangi</option>
+              <option value="oldest">Eng eski</option>
+            </select>
+          </label>
+          <button
+            type="button"
+            onClick={resetFilters}
+            className="ml-auto inline-flex h-9 items-center gap-2 px-2 text-[11px] font-medium text-[#666] hover:text-black"
+          >
+            <span aria-hidden="true">⌁</span> Filtrni tozalash
+          </button>
         </div>
-      </motion.div>
 
-      {/* Filters HUD */}
-      <div className="flex flex-col gap-4 bg-[#F7F6E2]/80 dark:bg-black/80 backdrop-blur-xl p-4 -mx-4 lg:-mx-0 lg:rounded-[2rem] border-y lg:border border-[#2E2D2B]/5 dark:border-[#A9D3C9]/50 shadow-xl shadow-[#2E2D2B]/5 dark:shadow-[0_0_20px_-5px_rgba(169,211,201,0.2)] transition-all w-full mb-8">
-        {/* Status Tabs */}
-        <div className="flex p-1.5 bg-white dark:bg-neutral-900 rounded-2xl w-full border border-[#2E2D2B]/5 dark:border-[#A9D3C9]/20 shadow-sm">
-          {[
-            { id: "all", label: t("filter_all") },
-            { id: "lost", label: t("filter_lost") },
-            { id: "found", label: t("filter_found") },
-          ].map((f) => (
+        <div className="flex gap-2 overflow-x-auto pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [@media(max-height:680px)]:pt-1">
+          {CATEGORIES.slice(1).map((option) => (
             <button
-              key={f.id}
-              onClick={() => setFilter(f.id)}
-              className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
-                filter === f.id
-                  ? "bg-[#A9D3C9] text-[#2E2D2B] font-black shadow-lg shadow-[#A9D3C9]/20 scale-[1.02]"
-                  : "text-[#2E2D2B]/40 dark:text-white/40 hover:bg-[#A9D3C9]/10 hover:text-[#2E2D2B] dark:hover:text-white"
+              key={option.id}
+              type="button"
+              onClick={() => {
+                setCategory(category === option.id ? "all" : option.id);
+                setPage(1);
+              }}
+              className={`inline-flex h-8 shrink-0 items-center gap-2 rounded-lg px-3 text-[10px] font-medium transition [@media(max-height:680px)]:h-7 ${
+                category === option.id ? "bg-[#d9d9d9] text-[#222]" : "bg-[#f0f0f0] text-[#555] hover:bg-[#e6e6e6]"
               }`}
             >
-              {f.label}
+              <span aria-hidden="true" className="text-sm">{option.icon}</span>
+              {t(`cat_${option.labelId}`)}
             </button>
           ))}
         </div>
+      </section>
 
-        {/* Categories Scrollable (Auto + Manual) */}
-        <div 
-           className="relative overflow-visible -mx-4 w-[calc(100%+32px)]"
-           onMouseEnter={() => setIsAutoScrolling(false)}
-           onMouseLeave={() => setIsAutoScrolling(true)}
-           onTouchStart={() => setIsAutoScrolling(false)}
-           onTouchEnd={() => setTimeout(() => setIsAutoScrolling(true), 1000)}
-        >
-           {/* Hide Native Scrollbar Styles */}
-           <style>{`
-             .scrollbar-none::-webkit-scrollbar { display: none; }
-             .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
-           `}</style>
-
-           {/* Fade masks */}
-           <div className="absolute left-0 top-0 bottom-4 w-12 bg-gradient-to-r from-[#F7F6E2]/90 dark:from-black/90 to-transparent z-10 pointer-events-none" />
-           <div className="absolute right-0 top-0 bottom-4 w-12 bg-gradient-to-l from-[#F7F6E2]/90 dark:from-black/90 to-transparent z-10 pointer-events-none" />
-
-           <div 
-             ref={scrollRef}
-             className="flex gap-3 w-full overflow-x-auto scrollbar-none px-4 py-2"
-           >
-            {/* Show items tripled for infinite scroll effect */}
-            {[...CATEGORIES, ...CATEGORIES, ...CATEGORIES].map((cat, index) => (
-              <FilterButton
-                key={`${cat.id}-${index}`}
-                label={t("cat_" + (cat.labelId || cat.id))}
-                icon={cat.icon}
-                active={category === cat.id}
-                onClick={() => setCategory(cat.id)}
-              />
-            ))}
-           </div>
-
-           {/* Custom Animated Scrollbar */}
-           <div className="mx-8 h-1 bg-[#2E2D2B]/5 dark:bg-white/5 rounded-full mt-2 overflow-hidden relative">
-              <motion.div 
-                className="absolute top-0 bottom-0 bg-gradient-to-r from-[#A9D3C9] via-white to-[#A9D3C9] dark:from-[#A9D3C9]/50 dark:via-[#A9D3C9] dark:to-[#A9D3C9]/50 shadow-[0_0_10px_rgba(169,211,201,0.5)] rounded-full"
-                style={{ 
-                    width: "20%", 
-                    left: useTransform(scrollProgress, [0, 1], ["0%", "80%"]) 
-                }} 
-              />
-           </div>
-        </div>
-      </div>
-
-      {/* Grid */}
-      {loading && page === 1 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 lg:gap-8">
-          {[1, 2, 3, 4, 5, 6, 7, 8].map(i => <ItemSkeleton key={i} />)}
-        </div>
-      ) : (
-        <div className="min-h-[50vh]">
-          {items.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 lg:gap-8">
-              <AnimatePresence mode="popLayout">
-                {items.map((item, index) => {
-                  const isLast = items.length === index + 1;
-                  return (
-                    <motion.div 
-                      layout
-                      initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }}
-                      transition={{ duration: 0.4, delay: index * 0.05 }}
-                      key={item._id} 
-                      ref={isLast ? lastItemRef : null}
-                    >
-                      <ItemCard item={item} />
-                    </motion.div>
-                  );
-                })}
-              </AnimatePresence>
-            </div>
-          ) : (
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="py-20 text-center flex flex-col items-center justify-center bg-white rounded-[3rem] border border-dashed border-[#2E2D2B]/10"
+      <section>
+        <div className="mb-2.5 flex items-center justify-between">
+          <div className="flex items-baseline gap-3">
+            <h2 className="text-lg font-extrabold tracking-tight">So&apos;nggi e&apos;lonlar</h2>
+            <span className="text-[11px] text-[#777]">{total || items.length} ta e&apos;lon</span>
+          </div>
+          <label className="sr-only" htmlFor="item-sort">E&apos;lonlarni tartiblash</label>
+          <div className="flex h-8 items-center gap-2 rounded-lg border border-[#e2e2e2] bg-white px-2.5 text-[10px] text-[#444]">
+            <span aria-hidden="true">↕</span>
+            <select
+              id="item-sort"
+              value={sortOrder}
+              onChange={(event) => setSortOrder(event.target.value)}
+              className="bg-transparent font-medium outline-none"
             >
-              <div className="w-32 h-32 bg-[#F7F6E2] rounded-full flex items-center justify-center text-6xl mb-6 grayscale opacity-80 shadow-inner">
-                📦
-              </div>
-              <h3 className="text-2xl font-black text-[#2E2D2B] mb-2 uppercase tracking-tight">{t("empty_title")}</h3>
-              <p className="text-[#2E2D2B]/50 font-medium max-w-sm mx-auto px-4 leading-relaxed">
-                {t("empty_desc")}
-              </p>
-              <button 
-                 onClick={() => {setFilter('all'); setCategory('all');}}
-                 className="mt-8 px-8 py-3 bg-[#2E2D2B] text-[#F7F6E2] rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-[#A9D3C9] hover:text-[#2E2D2B] transition-colors"
-              >
-                {t("empty_action")}
-              </button>
-            </motion.div>
-          )}
-
-          {loadingMore && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 lg:gap-8 mt-8">
-               {[1, 2, 3, 4].map(i => <ItemSkeleton key={i} />)}
-            </div>
-          )}
-
-          {!hasMore && items.length > 0 && (
-            <div className="py-16 text-center">
-               <div className="inline-flex items-center gap-4 px-6 py-3 rounded-full bg-white border border-[#2E2D2B]/5">
-                  <div className="w-2 h-2 bg-[#A9D3C9] rounded-full animate-pulse" />
-                  <p className="text-xs font-black text-[#2E2D2B]/40 uppercase tracking-widest">{t("all_loaded")}</p>
-                  <div className="w-2 h-2 bg-[#A9D3C9] rounded-full animate-pulse" />
-               </div>
-            </div>
-          )}
+              <option value="newest">Eng yangi</option>
+              <option value="oldest">Eng eski</option>
+            </select>
+          </div>
         </div>
-      )}
+
+        {error ? (
+          <div role="alert" className="rounded-xl border border-[#dedede] bg-white p-8 text-center text-sm text-[#555]">
+            {error}
+          </div>
+        ) : loading ? (
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:grid-cols-3">
+            {Array.from({ length: PAGE_SIZE }, (_, index) => (
+              <div key={index} className="h-[230px] animate-pulse overflow-hidden rounded-xl border border-[#e5e5e5] bg-white">
+                <div className="h-[130px] bg-[#e9e9e9]" />
+                <div className="space-y-2 p-3">
+                  <div className="h-3 w-2/3 rounded bg-[#e9e9e9]" />
+                  <div className="h-2 w-1/2 rounded bg-[#eee]" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : sortedItems.length ? (
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:grid-cols-3 [@media(max-height:680px)]:gap-2">
+            {sortedItems.map((item) => (
+              <motion.div key={item._id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+                <ItemCard item={item} t={t} />
+              </motion.div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed border-[#d9d9d9] bg-white px-6 py-14 text-center">
+            <div className="text-4xl text-[#888]" aria-hidden="true">□</div>
+            <h3 className="mt-3 text-base font-bold">{t("empty_title")}</h3>
+            <p className="mt-1 text-sm text-[#777]">{t("empty_desc")}</p>
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="mt-4 rounded-lg bg-[#252525] px-4 py-2 text-xs font-semibold text-white hover:bg-[#444]"
+            >
+              {t("empty_action")}
+            </button>
+          </div>
+        )}
+
+        {sortedItems.length > 0 && (
+          <nav aria-label="Sahifalash" className="mt-3 flex items-center justify-center gap-1.5 [@media(max-height:680px)]:mt-2">
+            <button
+              type="button"
+              disabled={page === 1 || loading}
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+              aria-label="Oldingi sahifa"
+              className="grid h-8 w-8 place-items-center rounded-lg border border-[#e0e0e0] bg-white text-sm disabled:opacity-40 [@media(max-height:680px)]:h-7 [@media(max-height:680px)]:w-7"
+            >
+              ‹
+            </button>
+            {pageNumbers.map((number) => (
+              <button
+                key={number}
+                type="button"
+                onClick={() => setPage(number)}
+                aria-current={page === number ? "page" : undefined}
+                className={`grid h-8 w-8 place-items-center rounded-lg border text-xs [@media(max-height:680px)]:h-7 [@media(max-height:680px)]:w-7 ${
+                  page === number ? "border-[#333] bg-[#333] font-bold text-white" : "border-[#e0e0e0] bg-white text-[#444] hover:bg-[#eee]"
+                }`}
+              >
+                {number}
+              </button>
+            ))}
+            <button
+              type="button"
+              disabled={!hasMore || loading}
+              onClick={() => setPage((current) => current + 1)}
+              aria-label="Keyingi sahifa"
+              className="grid h-8 w-8 place-items-center rounded-lg border border-[#e0e0e0] bg-white text-sm disabled:opacity-40 [@media(max-height:680px)]:h-7 [@media(max-height:680px)]:w-7"
+            >
+              ›
+            </button>
+          </nav>
+        )}
+      </section>
     </div>
   );
 }
