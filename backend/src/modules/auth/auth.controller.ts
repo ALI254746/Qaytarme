@@ -38,16 +38,8 @@ export class AuthController {
 
   @Post('social-login')
   @HttpCode(HttpStatus.OK)
-  async socialLogin(@Body() data: { email: string; name: string; avatar?: string }) {
-    try {
-      this.logger.log(`Social login request for email: ${data.email}`);
-      const result = await this.authService.socialLogin(data);
-      this.logger.log(`Social login successful for email: ${data.email}`);
-      return result;
-    } catch (error) {
-      this.logger.error(`Social login failed for email: ${data.email}`, error.stack || error.message);
-      throw error;
-    }
+  async socialLogin(@Body() data: { idToken: string }) {
+    return this.authService.googleLogin(data?.idToken);
   }
 
   @Post('forgot-password')

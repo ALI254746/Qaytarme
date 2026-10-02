@@ -1,7 +1,19 @@
 "use client";
-
-import MatchesIntelligencePage from "../../components/osint/MatchesIntelligencePage";
-
-export default function DesktopMatchesPage() {
-  return <MatchesIntelligencePage />;
+import {useEffect,useState} from "react";
+import Link from "next/link";
+import {useSession} from "next-auth/react";
+import {Link2,ArrowRight,MapPin,MessageSquare,RefreshCw,ShieldCheck} from "lucide-react";
+import {getApiUrl} from "@/lib/api-config";
+import {Heading,Panel,Empty,Badge,ItemImage,Source} from "../../components/qaytarme/ui";
+export default function Matches(){
+ const {data:session,status}=useSession(),[matches,setMatches]=useState([]),[loading,setLoading]=useState(true),[error,setError]=useState(""),[selected,setSelected]=useState(""),[refresh,setRefresh]=useState(0);
+ useEffect(()=>{if(status==="loading")return;if(!session?.user?.accessToken){setLoading(false);return;}const c=new AbortController();setLoading(true);fetch(getApiUrl("matches"),{signal:c.signal,headers:{Authorization:"Bearer "+session.user.accessToken}}).then(async r=>{if(!r.ok)throw Error("Mosliklarni yuklab bo‘lmadi.");return r.json();}).then(data=>{setMatches(Array.isArray(data)?data:[]);setError("");}).catch(e=>{if(e.name!=="AbortError")setError(e.message);}).finally(()=>{if(!c.signal.aborted)setLoading(false);});return()=>c.abort();},[session,status,refresh]);
+ if(status!=="loading"&&!session)return <><Heading title="Mos kelgan buyumlar" text="Sizning e’lonlaringizga o‘xshash buyumlarni bir joyda ko‘ring."/><Panel><Empty title="Mosliklarni ko‘rish uchun kiring" text="Buyumingiz haqida e’lon bering. Qarama-qarshi turdagi e’lonlar buyum, tavsif, joy va sana bo‘yicha solishtiriladi."><Link className="qm-btn qm-btn-dark" href="/login?callbackUrl=%2Fdesktop%2Fmatches">Hisobga kirish</Link></Empty></Panel></>;
+ const active=matches.find(m=>m._id===selected)||matches[0];
+ const ownerId=item=>typeof item?.user==="object"?item.user?._id||item.user?.id:item?.user;
+ const contactItem=ownerId(active?.lostItem)===session?.user?.id?active?.foundItem:active?.lostItem;
+ const telegramSource=contactItem?.provenance?.sourceType==="telegram";
+ const contactHref=telegramSource?(contactItem.provenance.sourceUrl||"/desktop/item/"+contactItem._id):"/desktop/messages?"+new URLSearchParams({userId:ownerId(contactItem)||"",itemId:contactItem?._id||""});
+ return <><Heading title="Mos kelgan buyumlar" text="Moslik tavsiyasi buyum sizniki ekanini tasdiqlamaydi. Belgilarini tekshirib, egasi bilan bog‘laning."><button className="qm-btn" onClick={()=>setRefresh(v=>v+1)}><RefreshCw size={14}/>Yangilash</button></Heading>{error&&<div role="alert" className="qm-notice qm-error">{error}</div>}{loading?<div className="qm-loading">Mosliklar izlanmoqda…</div>:!matches.length?<Panel><Empty title="Hali moslik topilmadi" text="Yangi e’lonlar kelganda mosliklar avtomatik tekshiriladi. Tavsifda rang, model va alohida belgilarni yozing."><Link className="qm-btn qm-btn-dark" href="/desktop/add">E’lon berish</Link></Empty></Panel>:<div className="qm-split"><Panel title="Mosliklar"><div className="qm-queue">{matches.map(m=><button key={m._id} className={active?._id===m._id?"active":""} onClick={()=>setSelected(m._id)}><ItemImage item={m.foundItem}/><div><strong>{m.foundItem?.itemType||"Buyum"}</strong><small>{Math.round(m.similarity)}% o‘xshashlik</small></div></button>)}</div></Panel><Panel title="Moslikni solishtirish"><div className="qm-review"><div className="qm-match-score"><Link2 size={22}/><strong>{Math.round(active.similarity)}%</strong><span>o‘xshashlik</span></div><div className="qm-match-compare">{[["Yo‘qolgan",active.lostItem],["Topilgan",active.foundItem]].map(([label,item])=><div key={label}><ItemImage item={item}/><Badge>{label}</Badge><h2>{item?.itemType||"Buyum"}</h2><p><MapPin size={12}/>{item?.location||item?.region||"Joy noma’lum"}</p><p>{item?.itemDescription}</p>{item&&<Source item={item}/>}<Link href={"/desktop/item/"+item?._id} className="qm-inline-link">E’lonni ko‘rish →</Link></div>)}</div><div className="qm-notice"><strong>Moslik sabablari</strong><p>{active.reason||"Kategoriya va umumiy o‘xshashlik"}</p></div><div className="qm-action-bar"><Link className="qm-btn" href="/desktop/map"><MapPin size={14}/>Xaritada izlash</Link><Link className="qm-btn qm-btn-dark" href={contactHref} target={telegramSource?"_blank":undefined} rel={telegramSource?"noreferrer":undefined}><MessageSquare size={14}/>{telegramSource?"Telegram orqali bog‘lanish":"Bog‘lanish"}</Link></div></div></Panel></div>}</>;
 }
+

@@ -22,11 +22,6 @@ function VerifyContent() {
   const inputRefs = useRef([]);
 
   useEffect(() => {
-    if (typeof window !== "undefined" && window.innerWidth < 1024) {
-      const emailParam = email ? `?email=${encodeURIComponent(email)}` : "";
-      router.replace(`/mobile/verify${emailParam}`);
-      return;
-    }
 
     if (!email) {
       router.push("/register");

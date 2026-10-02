@@ -14,11 +14,12 @@ import { MatchesService } from '../matches/matches.service';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { TranslationService } from '../translation/translation.service';
 import { DedupeService } from './dedupe.service';
+import { SettingsService } from '../operations/settings.module';
 import {
   buildAnnouncementText,
   resolveAnnouncementCategory,
 } from '../../utils/announcement-category.util';
-import { escapeRegex, sanitizeAriza, sanitizeArizaList } from '../../utils/pii.util';
+import { escapeRegex, sanitizeAriza, sanitizeArizaList, canSeeContacts } from '../../utils/pii.util';
 import { extractCloudinaryPhash } from '../../utils/image-hash.util';
 import { transliterateCyrillicToLatin } from '../../utils/text-normalization.util';
 import {
@@ -58,6 +59,7 @@ export class ArizaService {
     private cloudinaryService: CloudinaryService,
     private translationService: TranslationService,
     private dedupeService: DedupeService,
+    private settingsService: SettingsService,
   ) {}
 
   private assertObjectId(value: string, label = 'identifikator'): Types.ObjectId {
@@ -131,9 +133,14 @@ export class ArizaService {
       );
     }
 
+    const alreadyConfirmed = ariza.confirmedByFinder;
     ariza.confirmedByFinder = true;
     await ariza.save();
-    return this.checkAndAwardPoints(ariza);
+    const updated = await this.checkAndAwardPoints(ariza);
+    if (!alreadyConfirmed) {
+      await this.notifyHandoverParticipant(ariza, userId, updated.moderationStatus === 'returned');
+    }
+    return updated;
   }
 
   async confirmReceipt(arizaId: string, userId: string, otherUserId: string) {
@@ -150,9 +157,58 @@ export class ArizaService {
       throw new ForbiddenException('Qabul qilishni faqat buyum egasi tasdiqlaydi');
     }
 
+    const alreadyConfirmed = ariza.confirmedByLoser;
     ariza.confirmedByLoser = true;
     await ariza.save();
-    return this.checkAndAwardPoints(ariza);
+    const updated = await this.checkAndAwardPoints(ariza);
+    if (!alreadyConfirmed) {
+      await this.notifyHandoverParticipant(ariza, userId, updated.moderationStatus === 'returned');
+    }
+    return updated;
+  }
+
+  private async notifyHandoverParticipant(ariza: Ariza, userId: string, completed: boolean) {
+    const ownerId = ariza.user.toString();
+    const otherParticipantId = ownerId === userId
+      ? ariza.matchedUser?.toString()
+      : ownerId;
+    if (!otherParticipantId || otherParticipantId === userId) return;
+
+    const isFinder =
+      (ariza.status === 'found' && ownerId === userId)
+      || (ariza.status === 'lost' && ownerId !== userId);
+    const title = completed
+      ? 'Buyum qaytarildi'
+      : isFinder
+        ? 'Qabul qilish kutilmoqda'
+        : 'Topshirish tasdiqlandi';
+    const message = completed
+      ? 'Buyum qaytarilgani ikki tomon tomonidan tasdiqlandi.'
+      : isFinder
+        ? 'Topilgan buyum topshirildi. Qabul qilganingizni tasdiqlang.'
+        : 'Buyum egasi qabul qilganini tasdiqladi.';
+    try {
+      await this.userModel.updateOne(
+        { _id: otherParticipantId },
+        {
+          $addToSet: {
+            notifications: {
+              _id: new Types.ObjectId(),
+              type: 'handover',
+              title,
+              message,
+              from: new Types.ObjectId(userId),
+              createdAt: new Date(),
+              read: false,
+              actionUrl: `/desktop/messages?userId=${encodeURIComponent(userId)}&itemId=${encodeURIComponent(ariza._id.toString())}`,
+              relatedEntityId: ariza._id,
+            },
+          },
+        },
+      );
+    } catch (notificationError) {
+      this.logger.error('Topshirish bildirishnomasi saqlanmadi', notificationError);
+    }
   }
 
   async cancelDeal(arizaId: string, userId: string) {
@@ -232,23 +288,24 @@ export class ArizaService {
   async create(
     userId: string,
     data: CreateArizaDto & Record<string, any>,
-    file?: Express.Multer.File | { url: string; phash?: string },
+    file?: Express.Multer.File | { url: string; phash?: string } | Array<Express.Multer.File>,
   ) {
     try {
-      let imageData: { url: string; publicId?: string; phash?: string } | null = null;
+      const files = Array.isArray(file) ? file : file ? [file] : [];
+      const imagesData: Array<{ url: string; publicId?: string; phash?: string }> = [];
 
-      if (file) {
-        if ('url' in file) {
+      for (const uploadedFile of files) {
+        if ('url' in uploadedFile) {
           // Provided by the trusted Telegram ingestion pipeline.
-          imageData = { url: file.url, phash: file.phash };
+          imagesData.push({ url: uploadedFile.url, phash: uploadedFile.phash });
         } else {
-          const result = await this.cloudinaryService.uploadFile(file);
-          imageData = {
+          const result = await this.cloudinaryService.uploadFile(uploadedFile);
+          imagesData.push({
             url: (result as any).secure_url,
             publicId: (result as any).public_id,
             // Perceptual hash, used to recognise the same photo in reposts.
             phash: extractCloudinaryPhash(result as any),
-          };
+          });
         }
       }
 
@@ -297,8 +354,10 @@ export class ArizaService {
         region: data.region,
         district: data.district,
         coordinates,
-        image: imageData,
+        image: imagesData[0] ?? null,
+        images: imagesData,
         moderationStatus: 'approved',
+        imageVisibility: ['docs','vehicle'].includes(categoryResolution.category) ? 'hidden' : 'public',
       };
 
       for (const field of SERVER_OWNED_FIELDS) {
@@ -309,8 +368,20 @@ export class ArizaService {
       // ingestion, admin import). An HTTP request body can never set it.
       if (data.provenance && data.trustedSource === true) {
         payload.provenance = data.provenance;
+        if (data.locationResolution) payload.locationResolution = data.locationResolution;
+        if(data.telegramImportKey) payload.telegramImportKey = data.telegramImportKey;
       }
 
+      const settings = await this.settingsService.get();
+      const imported = data.trustedSource === true && data.provenance?.sourceType === 'telegram';
+      payload.moderationStatus = (imported ? settings.moderateTelegram : settings.moderateWeb) ? 'pending' : 'approved';
+      if (imported && data.provenance?.channelUsername && data.provenance?.messageIds?.length) {
+        const existing = await this.arizaModel.findOne({
+          'provenance.channelUsername': data.provenance.channelUsername,
+          'provenance.messageIds': { $in: data.provenance.messageIds },
+        });
+        if (existing) return existing;
+      }
       const savedAriza = await new this.arizaModel(payload).save();
 
       // Enrichment steps run after the announcement is safely stored, and a
@@ -329,6 +400,10 @@ export class ArizaService {
 
       return savedAriza;
     } catch (error: any) {
+      if (error?.code === 11000 && data.trustedSource === true && data.telegramImportKey) {
+        const existing = await this.arizaModel.findOne({ telegramImportKey: data.telegramImportKey });
+        if (existing) return existing;
+      }
       if (error?.status && error.status < 500) throw error;
       this.logger.error(`Error creating Ariza: ${error.message}`, error.stack);
       throw new InternalServerErrorException("E'lonni saqlashda xatolik yuz berdi");
@@ -350,6 +425,12 @@ export class ArizaService {
       'cluster.isPrimary': { $ne: false },
     };
 
+    if (query.source === 'telegram') filter['provenance.sourceType'] = 'telegram';
+    if (query.source === 'web') filter['provenance.sourceType'] = { $ne: 'telegram' };
+    if (query.region) {
+      const normalizedRegion = query.region.replace(/[‘’`ʻ]/g, "'");
+      filter.region = new RegExp(escapeRegex(normalizedRegion), 'i');
+    }
     if (query.status && query.status !== 'all') filter.status = query.status;
     if (query.category && query.category !== 'all') filter.category = query.category;
 
@@ -398,7 +479,7 @@ export class ArizaService {
     );
 
     return {
-      arizalar: sanitizeArizaList(prepared, viewerId),
+      arizalar: sanitizeArizaList(prepared, viewerId, (await this.settingsService.get()).imageDisplayMode || 'sensitive'),
       total,
       page,
       limit,
@@ -415,9 +496,10 @@ export class ArizaService {
       .lean()
       .exec();
 
-    if (!ariza) throw new NotFoundException("E'lon topilmadi");
+    if (!ariza || (!['approved','returned'].includes(ariza.moderationStatus) && !canSeeContacts(ariza,viewerId))) throw new NotFoundException("E'lon topilmadi");
 
-    return sanitizeAriza(ariza, viewerId);
+    const settings = await this.settingsService.get();
+    return sanitizeAriza(ariza, viewerId, settings.imageDisplayMode || 'blurred');
   }
 
   /** Which sources reported this item, and when. Contains no contact data. */
@@ -441,7 +523,8 @@ export class ArizaService {
       .lean()
       .exec();
 
-    return sanitizeArizaList(arizalar, userId);
+    const settings = await this.settingsService.get();
+    return sanitizeArizaList(arizalar, userId, settings.imageDisplayMode || 'blurred');
   }
 
   async remove(id: string, userId: string) {

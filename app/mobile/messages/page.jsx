@@ -110,7 +110,7 @@ export default function MobileMessagesPage() {
                     <div className="flex-1 min-w-0 py-0.5">
                        <div className="flex justify-between items-baseline mb-0.5">
                           <h4 className="font-bold text-neutral-900 dark:text-white truncate text-base leading-tight">
-                             {conv.user.role === 'admin' ? (t('admin_support_name') || "QaytarMe Support") : conv.user.name}
+                             {conv.user.role === 'admin' ? (t('admin_support_name') || "Buyum Qidiruv yordami") : conv.user.name}
                              {conv.user.role === 'admin' && <svg className="w-3 h-3 text-blue-500 inline-block ml-1" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg>}
                           </h4>
                           <span className={`text-[11px] font-medium whitespace-nowrap ml-2 ${conv.unreadCount > 0 ? 'text-blue-500' : 'text-neutral-400'}`}>

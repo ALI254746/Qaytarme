@@ -1,14 +1,15 @@
 import "./globals.css";
 import React from "react";
 import Providers from "./providers";
+import { AppRouterCacheProvider } from "@mui/material-nextjs/v16-appRouter";
 
 import { Outfit } from "next/font/google";
 
 const outfit = Outfit({ subsets: ["latin"] });
 
 export const metadata = {
-  title: "QaytarMe - Topilmalar Byurosi",
-  description: "Yo'qolgan buyumlarni topish va qaytarish uchun yagona platforma.",
+  title: "Buyum Qidiruv — yo‘qolgan va topilgan buyumlar",
+  description: "Buyum Qidiruv orqali yo‘qolgan va topilgan buyumlarni izlang, e’lon bering va egasiga qaytaring.",
   icons: {
     icon: '/icon-512.png',
     apple: '/icon-512.png', 
@@ -21,9 +22,9 @@ export default function RootLayout({ children }) {
       <body
         className={`${outfit.className} antialiased bg-[var(--color-ivory)] text-[var(--color-obsidian)]`}
       >
-        <Providers>
-          {children}
-        </Providers>
+        <AppRouterCacheProvider options={{ key: "css" }}>
+          <Providers>{children}</Providers>
+        </AppRouterCacheProvider>
       </body>
     </html>
   );

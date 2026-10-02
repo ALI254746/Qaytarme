@@ -77,3 +77,27 @@ describe('PII redaction', () => {
     expect(safe?.provenance).not.toHaveProperty('originalText');
   });
 });
+describe('Imported text and image privacy',()=>{
+ it('hides phone numbers embedded in a title and description',()=>{
+  const safe=sanitizeAriza({...announcement,itemType:'Telefon +998901234567',itemDescription:'tel +998 90 123 45 67, test@example.com'});
+  expect(JSON.stringify(safe)).not.toContain('901234567');
+  expect(safe?.itemDescription).not.toContain('test@example.com');
+ });
+ it('withholds unreviewed document images from the public API',()=>{
+  const safe=sanitizeAriza({...announcement,category:'docs',image:{url:'secret.jpg'},images:[{url:'secret.jpg'}]});
+  expect(safe?.image).toBeNull();expect(safe?.images).toEqual([]);expect(safe?.imageVisibility).toBe('hidden');
+ });
+ it('allows a moderator-reviewed public image',()=>{
+  const safe=sanitizeAriza({...announcement,category:'docs',imageVisibility:'public',image:{url:'redacted.jpg'}});
+  expect(safe?.image.url).toBe('redacted.jpg');
+ });
+});
+
+describe('Blurred document preview',()=>{
+ it('returns a blurred Cloudinary preview without original metadata',()=>{
+  const safe=sanitizeAriza({category:'docs',image:{url:'https://res.cloudinary.com/demo/image/upload/v1/document.jpg',public_id:'document'},images:[]});
+  expect(safe?.imageVisibility).toBe('blurred');
+  expect(safe?.image).toEqual({url:'https://res.cloudinary.com/demo/image/upload/e_blur:1800,w_480,c_limit/v1/document.jpg'});
+  expect(safe?.image).not.toHaveProperty('public_id');
+ });
+});

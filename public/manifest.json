@@ -1,7 +1,7 @@
 {
-  "name": "QaytarMe - Topilmalar Tizimi",
-  "short_name": "QaytarMe",
-  "description": "Yo'qolgan va topilgan buyumlarni qaytarish platformasi",
+  "name": "Buyum Qidiruv — yo‘qolgan va topilgan buyumlar",
+  "short_name": "Buyum Qidiruv",
+  "description": "Yo‘qolgan va topilgan buyumlarni izlash platformasi",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

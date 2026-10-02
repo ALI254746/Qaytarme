@@ -208,6 +208,9 @@ export class Ariza extends Document {
     lng: number;
   };
 
+  @Prop({ type: { provider: String, precision: String, approximate: Boolean, confidence: Number, matchedLabel: String, query: String } })
+  locationResolution?: {provider: string; precision: string; approximate: boolean; confidence: number | null; matchedLabel: string; query: string};
+
   /**
    * GeoJSON mirror of `coordinates`, kept in sync automatically.
    * Required for $near / $geoWithin queries and hotspot aggregation.
@@ -224,12 +227,19 @@ export class Ariza extends Document {
   @Prop({ type: ImageSchema })
   image: Image;
 
+  @Prop({ type: [ImageSchema], default: [] })
+  images: Image[];
+
   @Prop({ type: SourceProvenanceSchema })
   provenance: SourceProvenanceValue;
 
   @Prop({ type: ClusterInfoSchema, default: () => ({}) })
   cluster: ClusterInfo;
 
+  @Prop({ type: String, enum: ['hidden','public'] })
+  imageVisibility?: string;
+  @Prop({ type: String, unique: true, sparse: true })
+  telegramImportKey?: string;
   @Prop({ default: 0 })
   likeCount: number;
 

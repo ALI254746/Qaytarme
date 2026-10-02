@@ -73,7 +73,7 @@ export default function SplashScreen({ onComplete }) {
               transition={{ delay: 0.4 }}
               className="text-4xl font-black text-[#F7F6E2] tracking-tighter mb-2"
             >
-              QaytarMe
+              Buyum Qidiruv
             </motion.h1>
 
             <motion.p

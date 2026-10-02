@@ -15,6 +15,10 @@ export class TelegramChannel {
   @Prop({ default: true })
   isActive: boolean;
 
+  @Prop({ default: '' }) region: string;
+  @Prop({ default: null }) lastCheckedAt: Date;
+  @Prop({ default: '' }) lastError: string;
+  @Prop({ default: null }) lastImportedAt: Date;
   @Prop()
   addedBy: string; // Admin ID
 }

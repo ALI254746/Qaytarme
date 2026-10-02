@@ -297,7 +297,7 @@ function MobileProfileContent() {
                   chevron={false}
                />
             </div>
-            <p className="text-center text-neutral-400 text-[10px] mt-6 uppercase tracking-widest font-bold opacity-50">QaytarMe v2.0</p>
+            <p className="text-center text-neutral-400 text-[10px] mt-6 uppercase tracking-widest font-bold opacity-50">Buyum Qidiruv</p>
           </div>
 
        </div>

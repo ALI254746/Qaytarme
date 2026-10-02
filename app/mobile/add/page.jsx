@@ -186,9 +186,7 @@ export default function MobileAddItemPage() {
       const data = new FormData();
       data.append("status", formData.type);
       data.append("category", formData.category);
-      data.append("title", formData.title); 
       data.append("itemType", formData.title); 
-      data.append("description", formData.description);
       data.append("itemDescription", formData.description);
       data.append("location", formData.address);
       data.append("coordinates", JSON.stringify(formData.location));

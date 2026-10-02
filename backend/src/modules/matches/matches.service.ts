@@ -1,11 +1,14 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { ConfigService } from '@nestjs/config';
 import { Model, Types } from 'mongoose';
 import { ImageAnnotatorClient } from '@google-cloud/vision';
 import { Match } from '../../schemas/match.schema';
 import { Ariza } from '../../schemas/ariza.schema';
+import { User } from '../../schemas/user.schema';
 import { matchByCategory } from '../../utils/category-matcher.util';
+import { sanitizeAriza } from '../../utils/pii.util';
+import { SettingsService } from '../operations/settings.module';
 import {
   calculateExplainableMatchScore,
   MatchableItem,
@@ -25,7 +28,9 @@ export class MatchesService {
   constructor(
     @InjectModel(Match.name) private readonly matchModel: Model<Match>,
     @InjectModel(Ariza.name) private readonly arizaModel: Model<Ariza>,
+    @InjectModel(User.name) private readonly userModel: Model<User>,
     private readonly configService: ConfigService,
+    @Optional() private readonly settingsService?: SettingsService,
   ) {
     this.imageClient = this.createImageClient();
     const configuredThreshold = Number(
@@ -177,11 +182,13 @@ export class MatchesService {
 
   async findAndCreateMatches(newItem: Ariza): Promise<Types.ObjectId[]> {
     try {
+      if (newItem.moderationStatus !== 'approved') return [];
       const targetStatus = newItem.status === 'lost' ? 'found' : 'lost';
       const filter: Record<string, unknown> = {
         status: targetStatus,
         moderationStatus: 'approved',
         _id: { $ne: newItem._id },
+        'cluster.isPrimary': { $ne: false },
       };
 
       // Categories are enum-backed, so filtering here reduces unnecessary scans.
@@ -202,7 +209,7 @@ export class MatchesService {
         });
         if (exists) continue;
 
-        await this.matchModel.create({
+        const createdMatch = await this.matchModel.create({
           lostItem: lostItem._id,
           foundItem: foundItem._id,
           similarity: evaluation.score,
@@ -213,6 +220,47 @@ export class MatchesService {
           isRead1: false,
           isRead2: false,
         });
+        const notification = {
+          _id: createdMatch._id,
+          type: 'match',
+          title: 'Yangi moslik topildi',
+          createdAt: new Date(),
+          read: false,
+          actionUrl: '/desktop/matches',
+        };
+        try {
+          await Promise.all([
+            this.userModel.updateOne(
+              { _id: lostItem.user },
+              {
+                $addToSet: {
+                  notifications: {
+                    ...notification,
+                    message: `“${foundItem.itemName || foundItem.itemType || 'E’lon'}” e’loniga moslik topildi. O‘xshashlik: ${evaluation.score}%.`,
+                    relatedEntityId: foundItem._id,
+                  },
+                },
+              },
+            ),
+            this.userModel.updateOne(
+              { _id: foundItem.user },
+              {
+                $addToSet: {
+                  notifications: {
+                    ...notification,
+                    message: `“${lostItem.itemName || lostItem.itemType || 'E’lon'}” e’loniga moslik topildi. O‘xshashlik: ${evaluation.score}%.`,
+                    relatedEntityId: lostItem._id,
+                  },
+                },
+              },
+            ),
+          ]);
+        } catch (notificationError: any) {
+          this.logger.error(
+            'Moslik bildirishnomasi saqlanmadi',
+            notificationError?.stack ?? notificationError?.message,
+          );
+        }
         matches.push(candidate._id as Types.ObjectId);
       }
 
@@ -229,7 +277,7 @@ export class MatchesService {
   }
 
   async getUserMatches(userId: string) {
-    return this.matchModel
+    const matches = await this.matchModel
       .find({
         $or: [
           { user1: new Types.ObjectId(userId) },
@@ -241,6 +289,31 @@ export class MatchesService {
       .sort({ createdAt: -1 })
       .lean()
       .exec();
+    const imageDisplayMode = this.settingsService ? ((await this.settingsService.get()).imageDisplayMode || 'sensitive') : 'sensitive';
+    return matches.filter(match => {
+      const lost = match.lostItem as any, found = match.foundItem as any;
+      return lost && found && ['approved','returned'].includes(lost.moderationStatus) && ['approved','returned'].includes(found.moderationStatus);
+    }).map(match => ({
+      ...match,
+      lostItem: sanitizeAriza(match.lostItem as any, userId, imageDisplayMode),
+      foundItem: sanitizeAriza(match.foundItem as any, userId, imageDisplayMode),
+    }));
+  }
+
+  async markUserMatchesRead(userId: string) {
+    const userObjectId = new Types.ObjectId(userId);
+    const [asLostOwner, asFoundOwner] = await Promise.all([
+      this.matchModel.updateMany(
+        { user1: userObjectId, isRead1: false },
+        { $set: { isRead1: true } },
+      ),
+      this.matchModel.updateMany(
+        { user2: userObjectId, isRead2: false },
+        { $set: { isRead2: true } },
+      ),
+    ]);
+
+    return { modifiedCount: asLostOwner.modifiedCount + asFoundOwner.modifiedCount };
   }
 
   async findRelatedItemId(

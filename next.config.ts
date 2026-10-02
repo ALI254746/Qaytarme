@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  distDir: process.env.QAYTARME_BUILD_DIR || '.next',
   // Set workspace root to silence lockfile warning
   outputFileTracingRoot: require('path').join(__dirname),
   images: {

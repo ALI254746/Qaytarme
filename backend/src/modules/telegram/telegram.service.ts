@@ -1,4 +1,7 @@
-import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
+import {TelegramQueueService} from './telegram-queue.service';
+import { Injectable, OnModuleInit, Logger, ServiceUnavailableException, ConflictException } from '@nestjs/common';
+import { buildTelegramProvenance } from '../../utils/telegram-provenance.util';
+import { telegramBatchKey, isLostFoundPost } from './telegram-post.util';
 import { ConfigService } from '@nestjs/config';
 import { TelegramClient, Api } from 'telegram';
 import { StringSession } from 'telegram/sessions';
@@ -6,7 +9,7 @@ import { NewMessage } from 'telegram/events';
 import { ArizaService } from '../ariza/ariza.service';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { Client } from '@googlemaps/google-maps-services-js';
+import { TelegramLocationService } from '../geocoding/telegram-location.service';
 import { TelegramChannel } from '../../schemas/telegram-channel.schema';
 import { User } from '../../schemas/user.schema';
 import { Model } from 'mongoose';
@@ -20,10 +23,55 @@ import { normalizeCategory } from '../../utils/category.util';
 @Injectable()
 export class TelegramService implements OnModuleInit {
   private client: TelegramClient;
+  private connected = false;
+  private lastImportAt: Date | null = null;
+  private importBusy = false;
+  private refreshBusy = false;
+  private channelRefreshTimer: NodeJS.Timeout | null = null;
+  getStatus() {
+    return { configured: !!(this.configService.get('TELEGRAM_API_ID') && this.configService.get('TELEGRAM_API_HASH') && this.configService.get('TELEGRAM_SESSION')), connected: this.connected && !!this.client?.connected, lastImportAt: this.lastImportAt, importBusy: this.importBusy };
+  }
+  async refreshChannels() {
+    if (!this.connected || this.refreshBusy) return;
+    this.refreshBusy = true;
+    try { await this.joinChannels(); } finally { this.refreshBusy = false; }
+  }
+  async importRecent(username: string) {
+    if (!this.connected) throw new ServiceUnavailableException('Telegram userbot ulanmagan. Serverda TELEGRAM_API_ID, TELEGRAM_API_HASH va TELEGRAM_SESSION sozlang.');
+    if (this.importBusy) throw new ConflictException('Import davom etmoqda. Tugagach qayta urinib ko‘ring.');
+    const channel = await this.channelModel.findOne({ username, isActive: true });
+    if (!channel) throw new ConflictException('Kanal faol emas.');
+    this.importBusy = true;
+    let processed = 0;
+    try {
+      const entity: any = await this.client.getEntity(username);
+      const messages = await this.client.getMessages(entity, { limit: 30 });
+      const groups = new Map<string, Array<{ message: any; timestamp: number }>>();
+      for (const message of messages) {
+        if (!message.message?.trim()) continue;
+        const key = telegramBatchKey(message);
+        const batch = groups.get(key) || [];
+        batch.push({ message, timestamp: Date.now() }); groups.set(key, batch);
+      }
+      for (const batch of groups.values()) {
+        await this.processBatchedMessages(batch, entity.title || username, username);
+        processed++;
+      }
+      this.lastImportAt = new Date();
+      await this.channelModel.updateOne({ username }, { $set: { lastImportedAt: this.lastImportAt, lastError: '' } });
+      return { processed, checked: messages.length };
+    } finally { this.importBusy = false; }
+  }
+  async onModuleDestroy() {
+    if (this.channelRefreshTimer) clearInterval(this.channelRefreshTimer);
+    for (const timer of this.pendingTimeouts.values()) clearTimeout(timer);
+    if (this.client) await this.client.disconnect();
+  }
+
   private readonly logger = new Logger(TelegramService.name);
   private genAI: GoogleGenerativeAI | null = null;
   private model: any = null;
-  private mapsClient: Client | null = null;
+
   
   // Message batching: Store pending messages to combine them
   private pendingMessages: Map<string, Array<{ message: any; timestamp: number }>> = new Map();
@@ -35,6 +83,8 @@ export class TelegramService implements OnModuleInit {
   // private targetChannels = ['topilmalar_toshkent', 'topilmalar_uz']; 
 
   constructor(
+    private queueService: TelegramQueueService,
+    private locationService: TelegramLocationService,
     private configService: ConfigService,
     private arizaService: ArizaService,
     private cloudinaryService: CloudinaryService,
@@ -74,15 +124,6 @@ export class TelegramService implements OnModuleInit {
       this.model = null;
     }
 
-    // Initialize Google Maps API client for geocoding
-    const mapsApiKey = this.configService.get<string>('GOOGLE_MAPS_API_KEY');
-    if (mapsApiKey) {
-      this.mapsClient = new Client({});
-      this.logger.log('✅ Google Maps API client initialized');
-    } else {
-      this.logger.warn('⚠️ GOOGLE_MAPS_API_KEY not found. Location geocoding will use hardcoded coordinates only.');
-      this.mapsClient = null;
-    }
   }
 
   async onModuleInit() {
@@ -152,9 +193,16 @@ export class TelegramService implements OnModuleInit {
             return;
         }
 
+        this.connected = true;
         this.logger.log('Telegram Client Connected!');
         await this.joinChannels(); // Auto-join channels from DB
+        await this.queueService.start(async job => {
+          const messages = await this.client.getMessages(job.username, {ids: job.messageIds});
+          if (messages.length !== job.messageIds.length) throw new Error('Telegram navbatidagi postlar to‘liq olinmadi.');
+          await this.processBatchDirect(messages.map(message=>({message,timestamp:Date.now()})),job.title,job.username);
+        });
         this.startListening();
+        this.channelRefreshTimer = setInterval(() => { void this.refreshChannels(); }, 60000);
 
     } catch (e: any) {
         // Handle AUTH_KEY_DUPLICATED error specifically
@@ -194,12 +242,14 @@ export class TelegramService implements OnModuleInit {
                   await this.client.invoke(new Api.channels.JoinChannel({
                       channel: entity
                   }));
+                  await this.channelModel.updateOne({ _id: channel._id }, { $set: { lastCheckedAt: new Date(), lastError: '' } });
                   this.logger.log(`Successfully joined/verified channel: ${username}`);
               } catch (err) {
                   // User already participant error or other benign errors can be ignored
                   if (err.message && err.message.includes('USER_ALREADY_PARTICIPANT')) {
                        // already joined, good
                   } else {
+                      await this.channelModel.updateOne({ _id: channel._id }, { $set: { lastCheckedAt: new Date(), lastError: String(err.message || 'Ulanish xatosi').slice(0,200) } });
                       this.logger.warn(`Could not join channel ${username}: ${err.message}`);
                   }
               }
@@ -213,7 +263,7 @@ export class TelegramService implements OnModuleInit {
     this.client.addEventHandler(async (event: any) => {
         try {
             const message = event.message;
-            if (!message || !message.message) return;
+            if (!message || (!message.message && !message.media)) return;
 
             // Check if message is from observed channels
             // For simplicity, we process all messages for now or filter by chatID if we had them.
@@ -278,7 +328,8 @@ export class TelegramService implements OnModuleInit {
             this.logger.log(`>> PROCESSING VALID MESSAGE FROM: ${chatTitle} (@${chatUsername})`);
 
             // Check if this message should be batched with previous messages
-            const chatKey = `${chatId}_${chatUsername}`;
+            const groupId = telegramBatchKey(message);
+            const chatKey = `${chatId}_${chatUsername}_${groupId}`;
             const now = Date.now();
             
             // Add message to pending batch
@@ -337,7 +388,16 @@ export class TelegramService implements OnModuleInit {
   /**
    * Process multiple messages as a single announcement
    */
-  private async processBatchedMessages(
+  private async processBatchedMessages(messages: Array<{message:any;timestamp:number}>, chatTitle:string, chatUsername:string) {
+    if (!messages.length) return;
+    if (this.queueService.enabled) {
+      await this.queueService.enqueue({username:chatUsername,title:chatTitle,messageIds:messages.map(m=>Number(m.message.id))});
+      return;
+    }
+    await this.processBatchDirect(messages,chatTitle,chatUsername);
+  }
+
+  private async processBatchDirect(
     messages: Array<{ message: any; timestamp: number }>,
     chatTitle: string,
     chatUsername: string
@@ -353,6 +413,7 @@ export class TelegramService implements OnModuleInit {
         .filter(text => text.trim())
         .join('\n\n');
       
+      if (!isLostFoundPost(combinedText)) return;
       if (!combinedText.trim()) {
         this.logger.warn('Batch has no text content, skipping');
         return;
@@ -442,26 +503,21 @@ export class TelegramService implements OnModuleInit {
       }
       
       // Process combined text with AI
-      const extractedData = await this.analyzeContent(combinedText, buffer || undefined);
+      const channelContext = (await this.channelModel.find({}).lean()).find(c => c.username.toLowerCase().replace(/^@/, '') === chatUsername.toLowerCase().replace(/^@/, ''));
+      const extractedData = await this.analyzeContent(combinedText, buffer || undefined, channelContext?.region || chatTitle);
       if (!extractedData) {
         this.logger.warn('AI analysis returned no data for batch');
         return;
       }
       
-      // Improve coordinates
-      const regionCoords = await this.getRegionCoordinates(
-        extractedData.region,
-        extractedData.district,
-        extractedData.location
-      );
-      
+      const resolvedLocation = await this.locationService.resolve(extractedData, {region: channelContext?.region, username: chatUsername, title: chatTitle});
       // Transliterate fields
       const safeItemType = this.transliterateCyrillicToLatin(extractedData.itemType);
       const safeDescription = this.transliterateCyrillicToLatin(extractedData.description || combinedText);
       const safeTitle = this.transliterateCyrillicToLatin(extractedData.itemType || 'Noma\'lum buyum');
-      const safeRegion = this.transliterateCyrillicToLatin(extractedData.region);
-      const safeDistrict = this.transliterateCyrillicToLatin(extractedData.district);
-      const safeLocation = this.transliterateCyrillicToLatin(extractedData.location);
+      const safeRegion = this.transliterateCyrillicToLatin(resolvedLocation.region);
+      const safeDistrict = this.transliterateCyrillicToLatin(resolvedLocation.district);
+      const safeLocation = this.transliterateCyrillicToLatin(resolvedLocation.location);
       
       // Normalize category
       const normalizedCategory = normalizeCategory(extractedData.category);
@@ -481,29 +537,46 @@ export class TelegramService implements OnModuleInit {
         phone: Array.isArray(extractedData.phone) ? extractedData.phone.join(', ') : (extractedData.phone || ''),
         telegram: telegramContact,
         image: imageObj,
-        coordinates: regionCoords
+        coordinates: resolvedLocation.coordinates,
+        locationResolution: resolvedLocation.locationResolution
       };
       
       this.logger.log(`Saving batched announcement from Telegram: ${arizaData.title}`);
       console.log("---- TELEGRAM BATCHED ITEM SAVED ----");
       console.log(`Combined ${messages.length} messages into one announcement`);
-      console.log(arizaData);
+      // Do not print collected contact details to server logs.
       console.log("--------------------------------------");
       
       // Find an admin to assign this to
       const adminUser = await this.userModel.findOne({ role: 'admin' });
       if (adminUser) {
-        await this.arizaService.create(adminUser._id.toString(), arizaData, undefined);
+        const provenance = buildTelegramProvenance(
+          messages.map(({ message }) => ({ id: message.id, date: message.date })),
+          { chatTitle, chatUsername, originalText: combinedText, collectedAt: new Date(), parserVersion: 'telegram-parser-v2' },
+        );
+        await this.arizaService.create(adminUser._id.toString(), {
+          ...arizaData,
+          region: safeRegion === 'Unknown' ? '' : safeRegion || '',
+          district: safeDistrict === 'Unknown' ? '' : safeDistrict || '',
+          location: safeLocation === 'Unknown' ? '' : safeLocation || '',
+          date: provenance.publishedAt?.toISOString().split('T')[0] || '',
+          provenance,
+          trustedSource: true,
+          telegramImportKey: chatUsername.toLowerCase() + ':' + telegramBatchKey(messages[0]?.message || {}),
+        }, imageObj || undefined);
+        this.lastImportAt = new Date();
+        await this.channelModel.updateOne({ username: chatUsername }, { $set: { lastImportedAt: this.lastImportAt } });
         this.logger.log(`Batched item successfully saved to DB for admin: ${adminUser.name}`);
       } else {
         this.logger.warn('No admin user found to assign Telegram batch to.');
       }
     } catch (err) {
-      this.logger.error('Error processing batched messages:', err);
+      this.logger.error('Telegram e’lonini tahlil qilishda xato.');
+      if(this.queueService.enabled) throw new Error('Telegram tahlili bajarilmadi.');
     }
   }
 
-  private async analyzeContent(text: string, imageBuffer?: Buffer): Promise<any> {
+  private async analyzeContent(text: string, imageBuffer?: Buffer, channelRegion = ''): Promise<any> {
     // If Gemini AI is not available, return basic extracted data from text
     if (!this.model || !this.genAI) {
       this.logger.warn('Gemini AI not available. Using basic text extraction.');
@@ -515,6 +588,8 @@ export class TelegramService implements OnModuleInit {
         Analyze the following text AND IMAGE (if provided) which is an advertisement for a lost or found item.
         If the text is short or missing details (like location, color, type), LOOK AT THE IMAGE to extract them.
         
+        Channel locality context (use only if the post has no conflicting locality): ${JSON.stringify(channelRegion)}.
+        Include locationQueries: up to 2 short landmark search phrases from the post, correcting spelling errors. Never invent landmarks or include phone numbers. Preserve original location wording.
         Extract the following fields in JSON format:
         - status: "lost" or "found" (detect from context like "yo'qaldi", "topib olindi")
         - itemType: Short name of the item. IF NOT IN TEXT, IDENTIFY IT FROM THE IMAGE (e.g., "iPhone 13", "Pasport", "Kalit"). Keep it in Uzbek.
@@ -600,7 +675,7 @@ export class TelegramService implements OnModuleInit {
     
     // Detect status
     let status = 'found';
-    if (lowerText.includes('yo\'qaldi') || lowerText.includes('yoqaldi') || lowerText.includes('lost') || lowerText.includes('изчез')) {
+    if (/(yo[q‘'’ʻ]?ol|yo[q‘'’ʻ]?al|lost|потер|йўқол)/i.test(lowerText) || lowerText.includes('yo\'qaldi') || lowerText.includes('yoqaldi') || lowerText.includes('lost') || lowerText.includes('изчез')) {
       status = 'lost';
     } else if (lowerText.includes('topildi') || lowerText.includes('topib') || lowerText.includes('found') || lowerText.includes('найден')) {
       status = 'found';
@@ -697,97 +772,4 @@ export class TelegramService implements OnModuleInit {
     return text.split('').map(char => map[char] || char).join('');
   }
 
-  private async getRegionCoordinates(region: string, district?: string, location?: string): Promise<{ lat: number, lng: number }> {
-    // First, try to match specific locations in Tashkent (hardcoded)
-    if (location) {
-      const locationLower = location.toLowerCase();
-      const tashkentLocations: Record<string, { lat: number, lng: number }> = {
-        'bakatoshi pitak': { lat: 41.2800, lng: 69.2400 },
-        'bakatoshi': { lat: 41.2800, lng: 69.2400 },
-        'pitak': { lat: 41.2800, lng: 69.2400 },
-        'pitak moshnasida': { lat: 41.2800, lng: 69.2400 },
-        'chilonzor': { lat: 41.2800, lng: 69.2000 },
-        'yunusobod': { lat: 41.3500, lng: 69.2800 },
-        'olmazor': { lat: 41.3200, lng: 69.2500 },
-        'mirzo ulug\'bek': { lat: 41.3100, lng: 69.2300 },
-        'shayxontohur': { lat: 41.2900, lng: 69.2200 },
-        'yakkasaroy': { lat: 41.3000, lng: 69.2400 },
-        'sergeli': { lat: 41.2700, lng: 69.1800 },
-        'uchtepa': { lat: 41.2600, lng: 69.2000 },
-        'bekobod': { lat: 40.2200, lng: 69.2200 },
-        'angren': { lat: 41.0200, lng: 70.1400 },
-        'chirchiq': { lat: 41.4700, lng: 69.5800 },
-      };
-
-      for (const key in tashkentLocations) {
-        if (locationLower.includes(key)) {
-          this.logger.debug(`Found specific location: ${key} -> ${JSON.stringify(tashkentLocations[key])}`);
-          return tashkentLocations[key];
-        }
-      }
-
-      // If not found in hardcoded list, try Google Geocoding API
-      if (this.mapsClient) {
-        try {
-          const mapsApiKey = this.configService.get<string>('GOOGLE_MAPS_API_KEY');
-          const searchQuery = `${location}, ${region || 'Tashkent'}, Uzbekistan`;
-          this.logger.debug(`🔍 Searching Google Geocoding API for: ${searchQuery}`);
-          
-          const response = await this.mapsClient.geocode({
-            params: {
-              address: searchQuery,
-              key: mapsApiKey!,
-              language: 'uz',
-            },
-          });
-
-          if (response.data.results && response.data.results.length > 0) {
-            const result = response.data.results[0];
-            const coords = {
-              lat: result.geometry.location.lat,
-              lng: result.geometry.location.lng,
-            };
-            this.logger.log(`✅ Found coordinates via Google Geocoding API: ${JSON.stringify(coords)} for "${location}"`);
-            return coords;
-          }
-        } catch (error: any) {
-          this.logger.warn(`⚠️ Google Geocoding API failed: ${error.message || error}`);
-        }
-      }
-    }
-
-    // If region is missing, unknown, or empty, return null coordinates (will be handled by frontend)
-    if (!region || region.toLowerCase() === 'unknown' || region.trim() === '') {
-      this.logger.debug(`Region is unknown or empty. Returning null coordinates.`);
-      return { lat: 0, lng: 0 }; // Null coordinates - frontend can handle this
-    }
-
-    const coordsMap: Record<string, { lat: number, lng: number }> = {
-        'Toshkent': { lat: 41.2995, lng: 69.2401 },
-        'Andijon': { lat: 40.7821, lng: 72.3442 },
-        'Buxoro': { lat: 39.7747, lng: 64.4286 },
-        'Farg\'ona': { lat: 40.3842, lng: 71.7843 },
-        'Jizzax': { lat: 40.1158, lng: 67.8422 },
-        'Xorazm': { lat: 41.3565, lng: 60.8567 },
-        'Namangan': { lat: 40.9983, lng: 71.6726 },
-        'Navoiy': { lat: 40.1031, lng: 65.3739 },
-        'Qashqadaryo': { lat: 38.8986, lng: 65.7842 }, // Qarshi
-        'Samarqand': { lat: 39.6793, lng: 66.9750 },
-        'Sirdaryo': { lat: 40.4982, lng: 68.7754 }, // Guliston
-        'Surxondaryo': { lat: 37.2284, lng: 67.2752 }, // Termiz
-        'Surxandaryo': { lat: 37.2284, lng: 67.2752 }, // Alternative spelling
-        'Qoraqalpog\'iston': { lat: 42.4602, lng: 59.6166 } // Nukus
-    };
-
-    // Normalize region string to match keys
-    for (const key in coordsMap) {
-        if (region && region.toLowerCase().includes(key.toLowerCase())) {
-            return coordsMap[key];
-        }
-    }
-
-    // If region doesn't match any known region, return null coordinates
-    this.logger.debug(`Region "${region}" not found in coordinates map. Returning null coordinates.`);
-    return { lat: 0, lng: 0 }; // Null coordinates - frontend can handle this
-  }
 }

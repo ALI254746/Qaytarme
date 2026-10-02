@@ -6,6 +6,11 @@ export const MAX_PAGE_SIZE = 50;
 export const DEFAULT_PAGE_SIZE = 10;
 
 export class QueryArizaDto {
+  @IsOptional() @IsIn(['telegram','web','all'])
+  source?: string;
+  @IsOptional() @IsString() @MaxLength(80)
+  region?: string;
+
   @IsOptional()
   @IsIn(['lost', 'found', 'all'])
   status?: 'lost' | 'found' | 'all';

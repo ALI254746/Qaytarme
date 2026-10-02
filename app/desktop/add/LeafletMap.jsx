@@ -1,7 +1,7 @@
 "use client";
 
-import React from "react";
-import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
+import React, {useEffect} from "react";
+import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 
@@ -25,6 +25,8 @@ function LocationMarker({ position, setPosition, fetchAddress }) {
   return position ? <Marker position={[position.lat, position.lng]} /> : null;
 }
 
+function FollowPosition({position}) { const map=useMap(); useEffect(()=>{if(position)map.setView([position.lat,position.lng],13);},[map,position?.lat,position?.lng]); return null; }
+
 export default function LeafletMap({ position, setPosition, fetchAddress }) {
   return (
     <MapContainer
@@ -33,7 +35,8 @@ export default function LeafletMap({ position, setPosition, fetchAddress }) {
       style={{ height: "100%", width: "100%" }}
       className="z-0"
     >
-      <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+      <TileLayer attribution='&copy; OpenStreetMap contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+      <FollowPosition position={position}/>
       <LocationMarker position={position} setPosition={setPosition} fetchAddress={fetchAddress} />
     </MapContainer>
   );

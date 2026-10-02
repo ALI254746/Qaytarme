@@ -10,6 +10,7 @@ import { join } from 'path';
 function buildAllowedOrigins(): Set<string> {
   const origins = [
     'http://localhost:3000',
+    'http://localhost:3001',
     'https://qaytarme.uz',
     'https://www.qaytarme.uz',
     'https://qaytarme.vercel.app',

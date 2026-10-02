@@ -16,6 +16,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UsersService } from './users.service';
+import { NotificationPreferencesDto } from './notification-preferences.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -33,6 +34,7 @@ export class UsersController {
     private readonly cloudinaryService: CloudinaryService,
   ) {}
 
+  private safeProfile(user:any) { const data = user.toObject ? user.toObject() : {...user}; for(const key of ['password','verificationCode','verificationCodeExpiry','pushSubscription']) delete data[key]; return data; }
   @Get('me')
   async getMe(@Req() req: any) {
     const userId = req.user.id;
@@ -84,7 +86,7 @@ export class UsersController {
     });
 
     return {
-      ...user.toObject(),
+      ...this.safeProfile(user),
       stats: {
         // New Mobile Fields
         foundCount,
@@ -109,6 +111,10 @@ export class UsersController {
     };
   }
 
+  private notificationEnabled(user:User,type:string) {
+    const key=({match:'matches',message:'messages',admin_message:'messages',handover:'handover'})[type]||'system';
+    return user.notificationPreferences?.[key] !== false;
+  }
   @Put('me')
   async updateProfile(@Req() req: any, @Body() updateData: any) {
     const allowedFields = ['name', 'phone', 'bio'];
@@ -128,7 +134,7 @@ export class UsersController {
 
     return {
       message: 'Profil muvaffaqiyatli yangilandi',
-      user: updatedUser
+      user: this.safeProfile(updatedUser)
     };
   }
 
@@ -158,6 +164,17 @@ export class UsersController {
     }
   }
 
+  @Get('notification-preferences')
+  async getPreferences(@Req() req:any) {
+    const user=await this.usersService.findById(req.user.id);
+    if(!user)throw new NotFoundException('Foydalanuvchi topilmadi');
+    return Object.assign({matches:true,messages:true,handover:true,system:true},user.notificationPreferences || {});
+  }
+  @Put('notification-preferences')
+  async savePreferences(@Req()req:any,@Body()dto:NotificationPreferencesDto) {
+    await this.usersService.update(req.user.id,{notificationPreferences:dto});
+    return dto;
+  }
   @Get('notifications')
   async getNotifications(@Req() req: any) {
     const user = await this.usersService.findById(req.user.id);
@@ -167,13 +184,16 @@ export class UsersController {
     }
 
     return {
-      notifications: user.notifications || [],
-      unreadCount: (user.notifications || []).filter((n: any) => !n.read).length
+      notifications: (user.notifications || []).filter((n:any)=>this.notificationEnabled(user,n.type)),
+      unreadCount: (user.notifications || []).filter((n:any)=>!n.read&&this.notificationEnabled(user,n.type)).length
     };
   }
 
   @Patch('notifications/:notificationId/read')
-  async markNotificationRead(@Req() req: any, @Body() body: { notificationId: string }) {
+  async markNotificationRead(
+    @Req() req: any,
+    @Param('notificationId') notificationId: string,
+  ) {
     const user = await this.usersService.findById(req.user.id);
     
     if (!user) {
@@ -182,7 +202,7 @@ export class UsersController {
 
     // Mark notification as read
     const notifications = user.notifications || [];
-    const notification = notifications.find((n: any) => n._id.toString() === body.notificationId);
+    const notification = notifications.find((n: any) => n._id.toString() === notificationId);
     
     if (notification) {
       notification.read = true;
@@ -232,3 +252,4 @@ export class UsersController {
     };
   }
 }
+

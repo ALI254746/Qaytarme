@@ -74,16 +74,44 @@ export class AdminService {
   }
 
   async getAllUsers() {
-    const users = await this.userModel.find().lean().exec();
-    const usersWithStats = await Promise.all(users.map(async (user) => {
-      const itemCount = await this.arizaModel.countDocuments({ user: user._id });
+    const [users, itemStats] = await Promise.all([
+      this.userModel
+        .find()
+        .select('_id name email phone bio avatar role isVerified points badges createdAt updatedAt')
+        .sort({ createdAt: -1 })
+        .lean()
+        .exec(),
+      this.arizaModel.aggregate([
+        {
+          $group: {
+            _id: '$user',
+            items: { $sum: 1 },
+            returnedItems: {
+              $sum: {
+                $cond: [
+                  { $and: ['$confirmedByFinder', '$confirmedByLoser'] },
+                  1,
+                  0,
+                ],
+              },
+            },
+            latestItemAt: { $max: '$createdAt' },
+          },
+        },
+      ]),
+    ]);
+    const statsByUser = new Map(itemStats.map((stats) => [String(stats._id), stats]));
+
+    return users.map((user) => {
+      const stats = statsByUser.get(String(user._id));
       return {
         ...user,
-        items: itemCount,
+        items: stats?.items ?? 0,
+        returnedItems: stats?.returnedItems ?? 0,
+        latestItemAt: stats?.latestItemAt ?? null,
         joined: this.formatTime(user['createdAt'] || new Date()),
       };
-    }));
-    return usersWithStats;
+    });
   }
 
   async deleteUser(id: string) {

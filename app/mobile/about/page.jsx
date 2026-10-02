@@ -125,7 +125,7 @@ export default function MobileAboutPage() {
                  </p>
                  
                  <p className="text-sm text-neutral-500 mb-6 leading-relaxed">
-                     {founder?.bio || "Men texnologiya orqali odamlar hayotini yengillashtirishga ishonaman. QaytarMe loyihasi - bu mening jamiyatga qo'shgan kichik hissam."}
+                     {founder?.bio || "Men texnologiya orqali odamlar hayotini yengillashtirishga ishonaman. Buyum Qidiruv loyihasi - bu mening jamiyatga qo'shgan kichik hissam."}
                  </p>
 
                  {/* Tech Stack Chips */}

@@ -41,7 +41,9 @@
     "app/layout.jsx",
     "app/topilganlar/layout.jsx",
     "app/tooldashboard/components/Section.js",
-    ".next/dev/types/**/*.ts"
+    ".next/dev/types/**/*.ts",
+    ".next-check/types/**/*.ts",
+    ".next-check/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

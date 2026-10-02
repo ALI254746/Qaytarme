@@ -1,5 +1,9 @@
+import {RedisModule} from './modules/redis/redis.module';
 
 import { Module } from '@nestjs/common';
+import { GeocodingModule } from './modules/geocoding/geocoding.module';
+import { OperationsModule } from './modules/operations/operations.module';
+import { SettingsModule } from './modules/operations/settings.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AppController } from './app.controller';
@@ -32,6 +36,10 @@ import { GeoIntelligenceModule } from './modules/geo-intelligence/geo-intelligen
       }),
       inject: [ConfigService],
     }),
+    RedisModule,
+    SettingsModule,
+    GeocodingModule,
+    OperationsModule,
     AuthModule,
     UsersModule,
     ArizaModule,

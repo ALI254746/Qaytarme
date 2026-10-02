@@ -1,0 +1,14 @@
+"use client";
+import {useState} from "react";
+import Link from "next/link";
+import {Search,UserRound,MessageSquare} from "lucide-react";
+function time(value){if(!value)return '';const d=new Date(value);return d.toDateString()===new Date().toDateString()?d.toLocaleTimeString('uz-UZ',{hour:'2-digit',minute:'2-digit'}):d.toLocaleDateString('uz-UZ',{day:'2-digit',month:'2-digit'});}
+export function ChatList({conversations,activeId,query,onQueryChange,onSelect,loading,error,loginRequired,onRetry}) {
+ const [unreadOnly,setUnreadOnly]=useState(false);
+ const unread=conversations.filter(c=>c.unreadCount>0).length;
+ const filtered=conversations.filter(c=>(!unreadOnly||c.unreadCount>0)&&[c.user.name,c.lastMessage?.body,c.item?.itemType,c.item?.itemName].join(' ').toLocaleLowerCase('uz').includes(query.toLocaleLowerCase('uz')));
+ return <aside className="qm-conversation-list"><div className="qm-conversation-list-heading"><h1>Xabarlar</h1><label className="qm-conversation-search"><Search size={15}/><input value={query} onChange={e=>onQueryChange(e.target.value)} placeholder="Suhbatlarni qidiring" aria-label="Suhbatdan qidirish"/></label><div className="qm-chat-tabs"><button type="button" aria-pressed={!unreadOnly} onClick={()=>setUnreadOnly(false)}>Barchasi <span>{conversations.length}</span></button><button type="button" aria-pressed={unreadOnly} onClick={()=>setUnreadOnly(true)}>O‘qilmagan <span>{unread}</span></button></div></div>
+ <div className="qm-conversation-scroll">{loading&&<p className="qm-chat-loading">Suhbatlar yuklanmoqda…</p>}{error&&<div className="qm-chat-error" role="alert"><p>{error}</p>{loginRequired?<Link href="/login">Kirish</Link>:<button type="button" onClick={onRetry}>Qayta urinish</button>}</div>}
+ {!loading&&!error&&!filtered.length&&<div className="qm-chat-list-empty"><MessageSquare size={24}/><p>{unreadOnly?'O‘qilmagan suhbat yo‘q':query?'Mos suhbat topilmadi':'Hozircha suhbat yo‘q'}</p></div>}
+ <ul>{filtered.map(c=><li key={c.id}><button className="qm-conversation-row" type="button" aria-current={c.id===activeId?'true':undefined} onClick={()=>onSelect(c)}><span className="qm-person-avatar">{c.user.avatar?<img src={c.user.avatar} alt=""/>:<UserRound size={28}/>}</span><span className="qm-conversation-preview"><span className="qm-conversation-line"><strong>{c.user.name}</strong><time>{time(c.lastMessage?.createdAt)}</time></span><span className="qm-conversation-item">{c.item?.imageUrl&&<img src={c.item.imageUrl} alt=""/>}<span><span className="qm-conversation-item-title">{c.item?.itemType||c.item?.itemName||'Suhbat'}</span><span className="qm-conversation-last">{c.lastMessage?.body||'Suhbat boshlandi'}</span></span>{c.unreadCount>0&&<b className="qm-unread-count">{c.unreadCount}</b>}</span></span></button></li>)}</ul></div></aside>;
+}

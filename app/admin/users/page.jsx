@@ -1,155 +1,186 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { useSession } from "next-auth/react";
-import { getApiUrl } from "@/lib/api-config";
+import { useEffect, useMemo, useState } from "react";
+import {
+  CalendarDays,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  CircleUserRound,
+  Download,
+  Mail,
+  Phone,
+  Search,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
+import { Badge, Empty, Heading, Panel, dateOf } from "../../components/qaytarme/ui";
+import { useAdminData, downloadJson } from "../../components/qaytarme/admin-api";
+import { State } from "../../components/qaytarme/AdminShared";
 
-export default function AdminUsersPage() {
-  const { data: session } = useSession();
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+const PAGE_SIZE = 8;
+const tabs = [
+  ["all", "Barchasi"],
+  ["verified", "Tasdiqlangan"],
+  ["unverified", "Tasdiqlanmagan"],
+  ["admins", "Administratorlar"],
+];
 
-  const fetchUsers = async () => {
-    if (!session?.user?.accessToken) return;
-    setLoading(true);
-    try {
-      const res = await fetch(getApiUrl("admin/users"), {
-        headers: { "Authorization": `Bearer ${session.user.accessToken}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setUsers(data);
-      }
-    } catch (error) {
-      console.error("Fetch users error:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+function initials(name = "") {
+  return name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toLocaleUpperCase("uz-UZ") || "F";
+}
+
+function timeOf(value) {
+  if (!value || Number.isNaN(new Date(value).getTime())) return "—";
+  return new Date(value).toLocaleString("uz-UZ", {
+    timeZone: "Asia/Tashkent",
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function Avatar({ user, large = false }) {
+  return user.avatar ? (
+    <img className={`qm-users-avatar${large ? " large" : ""}`} src={user.avatar} alt="" />
+  ) : (
+    <span className={`qm-users-avatar qm-users-avatar-fallback${large ? " large" : ""}`} aria-hidden="true">
+      {initials(user.name)}
+    </span>
+  );
+}
+
+export default function Users() {
+  const { data, loading, error, refresh } = useAdminData("users");
+  const [query, setQuery] = useState("");
+  const [tab, setTab] = useState("all");
+  const [role, setRole] = useState("all");
+  const [verification, setVerification] = useState("all");
+  const [joinedWithin, setJoinedWithin] = useState("all");
+  const [page, setPage] = useState(1);
+  const [selectedId, setSelectedId] = useState("");
 
   useEffect(() => {
-    fetchUsers();
-  }, [session]);
+    setQuery(new URLSearchParams(window.location.search).get("q") || "");
+  }, []);
 
-  const handleDeleteUser = async (id) => {
-    if (!confirm("Haqiqatan ham ushbu foydalanuvchini o'chirmoqchimisiz? Barcha uning e'lonlari ham o'chiriladi.")) return;
-    
-    try {
-      const res = await fetch(getApiUrl(`admin/users/${id}`), {
-        method: "DELETE",
-        headers: { "Authorization": `Bearer ${session.user.accessToken}` }
-      });
-      if (res.ok) {
-        setUsers(prev => prev.filter(u => u._id !== id));
-      }
-    } catch (error) {
-      console.error("Delete user error:", error);
-    }
+  const allUsers = data || [];
+  const counts = useMemo(() => ({
+    all: allUsers.length,
+    verified: allUsers.filter((user) => user.isVerified).length,
+    unverified: allUsers.filter((user) => !user.isVerified).length,
+    admins: allUsers.filter((user) => user.role === "admin").length,
+  }), [allUsers]);
+
+  const filtered = useMemo(() => {
+    const normalizedQuery = query.trim().toLocaleLowerCase("uz-UZ");
+    const cutoff = joinedWithin === "7d" ? Date.now() - 7 * 86400000
+      : joinedWithin === "30d" ? Date.now() - 30 * 86400000 : null;
+    return allUsers.filter((user) => {
+      if (tab === "verified" && !user.isVerified) return false;
+      if (tab === "unverified" && user.isVerified) return false;
+      if (tab === "admins" && user.role !== "admin") return false;
+      if (role !== "all" && user.role !== role) return false;
+      if (verification === "verified" && !user.isVerified) return false;
+      if (verification === "unverified" && user.isVerified) return false;
+      if (cutoff && new Date(user.createdAt).getTime() < cutoff) return false;
+      if (!normalizedQuery) return true;
+      return [user.name, user.email, user.phone, user._id].join(" ").toLocaleLowerCase("uz-UZ").includes(normalizedQuery);
+    });
+  }, [allUsers, query, tab, role, verification, joinedWithin]);
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const visible = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const selected = filtered.find((user) => user._id === selectedId) || visible[0] || filtered[0] || null;
+
+  useEffect(() => {
+    setPage(1);
+  }, [query, tab, role, verification, joinedWithin]);
+
+  const clearFilters = () => {
+    setQuery("");
+    setTab("all");
+    setRole("all");
+    setVerification("all");
+    setJoinedWithin("all");
+    setSelectedId("");
   };
 
-  const filteredUsers = users.filter(user => 
-    user.name?.toLowerCase().includes(search.toLowerCase()) || 
-    user.email?.toLowerCase().includes(search.toLowerCase())
-  );
-
-  if (loading && users.length === 0) {
-    return <div className="p-20 text-center animate-pulse text-neutral-400">Foydalanuvchilar yuklanmoqda...</div>;
-  }
-
   return (
-    <div className="space-y-8 transition-colors duration-300">
-      {/* Header & Search */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
-        <div>
-          <h2 className="text-xl font-black text-neutral-900 dark:text-white mb-2 transition-colors">Foydalanuvchilar boshqaruvi</h2>
-          <p className="text-xs text-neutral-500 font-bold uppercase tracking-widest">Jami: {users.length} ta foydalanuvchi</p>
-        </div>
-        
-        <div className="relative w-full md:w-80">
-          <input 
-            type="text" 
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Ism yoki email orqali qidirish..." 
-            className="w-full h-12 pl-12 pr-4 bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 rounded-[1.2rem] text-sm text-neutral-900 dark:text-white focus:ring-2 focus:ring-mint/20 outline-none shadow-sm transition-colors"
-          />
-          <span className="absolute left-4 top-1/2 -translate-y-1/2 opacity-30 text-xl">🔍</span>
-        </div>
-      </div>
+    <div className="qm-users-page">
+      <Heading title="Foydalanuvchilar" text="Hisoblar, e’lonlar va tasdiqlash holatini boshqaring.">
+        <button className="qm-btn" onClick={() => downloadJson(filtered.map(({ email, phone, bio, ...user }) => user), "buyum-qidiruv-foydalanuvchilar")} disabled={!filtered.length}>
+          <Download size={14} /> Eksport
+        </button>
+      </Heading>
 
-      {/* Users Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        <AnimatePresence mode="popLayout">
-          {filteredUsers.map((user, index) => (
-            <motion.div
-              layout
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ delay: index * 0.05 }}
-              key={user._id}
-              className="bg-white dark:bg-neutral-900 rounded-[2.5rem] p-8 border border-neutral-100 dark:border-neutral-800 shadow-xl shadow-neutral-100/50 dark:shadow-none relative overflow-hidden group transition-colors duration-300"
-            >
-              <div className="flex items-center gap-4 mb-8">
-                 <div className="w-16 h-16 bg-mint/10 dark:bg-mint/20 rounded-2xl flex items-center justify-center text-2xl font-black text-neutral-800 dark:text-mint transition-colors overflow-hidden">
-                   {user.avatar ? (
-                     <img src={user.avatar} alt="" className="w-full h-full object-cover" />
-                   ) : user.name?.charAt(0)}
-                 </div>
-                 <div>
-                    <h4 className="font-black text-neutral-900 dark:text-white tracking-tight transition-colors">{user.name}</h4>
-                    <p className="text-xs font-bold text-neutral-400 dark:text-neutral-500">{user.email}</p>
-                 </div>
-                 {user.role === 'admin' && (
-                   <div className="absolute top-8 right-8 px-2 py-1 bg-neutral-900 dark:bg-mint text-white dark:text-neutral-900 text-[8px] font-black uppercase tracking-widest rounded transition-colors">
-                     Admin
-                   </div>
-                 )}
-              </div>
+      <State {...{ loading, error, refresh }} />
 
-              <div className="grid grid-cols-2 gap-4 mb-8">
-                 <div className="bg-neutral-50 dark:bg-black/20 p-4 rounded-2xl border border-neutral-100 dark:border-white/5 transition-colors">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-neutral-400 dark:text-neutral-500 mb-1">E'lonlar</p>
-                    <p className="text-xl font-black text-neutral-900 dark:text-white">{user.items}</p>
-                 </div>
-                 <div className="bg-neutral-50 dark:bg-black/20 p-4 rounded-2xl border border-neutral-100 dark:border-white/5 transition-colors">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-neutral-400 dark:text-neutral-500 mb-1">Ballar</p>
-                    <p className="text-xl font-black text-mint">{user.points || 0}</p>
-                 </div>
-              </div>
-
-              <div className="flex items-center justify-between">
-                 <p className="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-widest transition-colors">Qo'shildi: {user.joined}</p>
-                 <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button 
-                      onClick={() => handleDeleteUser(user._id)}
-                      className="w-10 h-10 bg-neutral-50 dark:bg-neutral-800 hover:bg-neutral-900 dark:hover:bg-white hover:text-white dark:hover:text-black rounded-xl flex items-center justify-center transition-all border border-neutral-100 dark:border-neutral-700 shadow-sm"
-                    >
-                       🗑️
-                    </button>
-                    <button className="w-10 h-10 bg-neutral-50 dark:bg-neutral-800 hover:bg-neutral-900 dark:hover:bg-white hover:text-white dark:hover:text-black rounded-xl flex items-center justify-center transition-all border border-neutral-100 dark:border-neutral-700 shadow-sm">
-                       🛡️
-                    </button>
-                 </div>
-              </div>
-              
-              {/* Decorative side bar */}
-              <div className="absolute top-0 left-0 w-1.5 h-full bg-mint opacity-0 group-hover:opacity-100 transition-opacity" />
-            </motion.div>
+      {!loading && !error && <>
+        <div className="qm-users-tabs" role="tablist" aria-label="Foydalanuvchi holati">
+          {tabs.map(([key, label]) => (
+            <button key={key} role="tab" aria-selected={tab === key} className={tab === key ? "active" : ""} onClick={() => setTab(key)}>
+              {label}<span>{counts[key]}</span>
+            </button>
           ))}
-        </AnimatePresence>
-      </div>
-
-      {filteredUsers.length === 0 && !loading && (
-        <div className="py-20 text-center bg-white dark:bg-neutral-900 rounded-[2.5rem] border border-neutral-100 dark:border-neutral-800 transition-colors duration-300">
-           <div className="w-20 h-20 bg-neutral-50 dark:bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
-             <span className="text-4xl opacity-20">👥</span>
-           </div>
-           <p className="text-neutral-500 dark:text-neutral-500 font-bold uppercase tracking-widest text-xs">Foydalanuvchilar topilmadi</p>
         </div>
-      )}
+
+        <div className="qm-users-filters">
+          <label className="qm-users-search"><Search size={15} /><input aria-label="Foydalanuvchini qidirish" placeholder="Ism, email, telefon yoki ID" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
+          <select aria-label="Hisob turi" value={role} onChange={(event) => setRole(event.target.value)}>
+            <option value="all">Barcha hisoblar</option><option value="user">Foydalanuvchi</option><option value="admin">Administrator</option>
+          </select>
+          <select aria-label="Email tasdiqlash holati" value={verification} onChange={(event) => setVerification(event.target.value)}>
+            <option value="all">Tasdiqlash: barchasi</option><option value="verified">Tasdiqlangan</option><option value="unverified">Tasdiqlanmagan</option>
+          </select>
+          <select aria-label="Ro‘yxatdan o‘tgan vaqt" value={joinedWithin} onChange={(event) => setJoinedWithin(event.target.value)}>
+            <option value="all">Ro‘yxatdan o‘tgan sana</option><option value="7d">Oxirgi 7 kun</option><option value="30d">Oxirgi 30 kun</option>
+          </select>
+          <button className="qm-users-reset" onClick={clearFilters}>Filtrlarni tozalash</button>
+        </div>
+
+        <div className="qm-users-workspace">
+          <Panel className="qm-users-list-panel">
+            <div className="qm-users-list-heading"><strong>{filtered.length.toLocaleString("uz-UZ")} ta foydalanuvchi</strong><span>{filtered.length ? `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, filtered.length)} ko‘rsatilmoqda` : "Natija yo‘q"}</span></div>
+            {filtered.length ? <>
+              <div className="qm-users-table-wrap">
+                <table className="qm-users-table">
+                  <thead><tr><th>Foydalanuvchi</th><th>Tasdiqlash</th><th>E’lonlar</th><th>Qaytarilgan</th><th>Hisob turi</th><th>Ro‘yxatdan o‘tgan</th></tr></thead>
+                  <tbody>{visible.map((user) => <tr key={user._id} tabIndex={0} className={selected?._id === user._id ? "selected" : ""} onClick={() => setSelectedId(user._id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedId(user._id); } }}>
+                    <td><div className="qm-users-person"><Avatar user={user} /><span><strong>{user.name || "Ism kiritilmagan"}</strong><small>{user.email}</small></span></div></td>
+                    <td><span className={`qm-users-status ${user.isVerified ? "verified" : "pending"}`}>{user.isVerified ? <><Check size={12} /> Tasdiqlangan</> : "Kutilmoqda"}</span></td>
+                    <td>{user.items || 0}</td>
+                    <td>{user.returnedItems || 0}</td>
+                    <td>{user.role === "admin" ? <span className="qm-users-role admin"><ShieldCheck size={12} /> Admin</span> : <span className="qm-users-role">Foydalanuvchi</span>}</td>
+                    <td>{dateOf(user.createdAt)}</td>
+                  </tr>)}</tbody>
+                </table>
+              </div>
+              <div className="qm-users-pagination"><span>Sahifada <select aria-label="Sahifadagi foydalanuvchilar soni" value={PAGE_SIZE} disabled><option>{PAGE_SIZE}</option></select> ta</span><span>{page} / {pageCount}</span><div><button aria-label="Oldingi sahifa" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}><ChevronLeft size={15} /></button><button aria-label="Keyingi sahifa" disabled={page >= pageCount} onClick={() => setPage((current) => current + 1)}><ChevronRight size={15} /></button></div></div>
+            </> : <Empty title="Foydalanuvchi topilmadi" text="Qidiruv yoki filtrlarga mos hisob yo‘q." />}
+          </Panel>
+
+          <Panel className="qm-users-profile-panel" title="Foydalanuvchi profili" actions={selected && <span className="qm-users-id">#{selected._id.slice(-6).toUpperCase()}</span>}>
+            {selected ? <div className="qm-users-profile">
+              <div className="qm-users-profile-head"><Avatar user={selected} large /><div><strong>{selected.name || "Ism kiritilmagan"}</strong><span>{selected.email}</span>{selected.role === "admin" && <Badge>Administrator</Badge>}</div></div>
+              <div className="qm-users-contact">
+                <span><Mail size={14} />{selected.email}</span>
+                {selected.phone && <span><Phone size={14} />{selected.phone}</span>}
+                <span className={selected.isVerified ? "is-verified" : ""}><ShieldCheck size={14} />{selected.isVerified ? "Email tasdiqlangan" : "Email tasdiqlanmagan"}</span>
+              </div>
+              <div className="qm-users-metrics">
+                <div><span>Faollik</span><strong>{selected.items || 0}</strong><small>E’lon</small></div>
+                <div><span>Ishonchlilik</span><strong>{selected.points || 0}</strong><small>Ball</small></div>
+                <div><span>Qaytarilgan</span><strong>{selected.returnedItems || 0}</strong><small>Buyum</small></div>
+              </div>
+              <section className="qm-users-history"><h3><CalendarDays size={14} /> Hisob tarixi</h3><div><i /><span><strong>Ro‘yxatdan o‘tgan</strong><small>{timeOf(selected.createdAt)}</small></span></div><div><i /><span><strong>Profil yangilangan</strong><small>{timeOf(selected.updatedAt)}</small></span></div>{selected.latestItemAt && <div><i /><span><strong>Oxirgi e’lon</strong><small>{timeOf(selected.latestItemAt)}</small></span></div>}</section>
+              {selected.bio && <section className="qm-users-bio"><h3><UserRound size={14} /> O‘zi haqida</h3><p>{selected.bio}</p></section>}
+              <div className="qm-users-profile-foot"><CircleUserRound size={14} /> Hisob ma’lumotlari faqat administratorlarga ko‘rinadi.</div>
+            </div> : <Empty title="Foydalanuvchini tanlang" text="Profil tafsilotlarini ko‘rish uchun jadvaldan hisob tanlang." />}
+          </Panel>
+        </div>
+      </>}
     </div>
   );
 }

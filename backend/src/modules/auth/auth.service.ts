@@ -1,3 +1,5 @@
+import { OAuth2Client } from 'google-auth-library';
+import { randomBytes } from 'crypto';
 
 import { Injectable, UnauthorizedException, ConflictException, BadRequestException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -61,14 +63,10 @@ export class AuthService {
 
     const emailResult = await this.mailService.sendVerificationEmail(email, verificationCode);
     
-    // TEMPORARY FIX: If email fails (e.g. Resend issues), verify user automatically
     if (!emailResult.success) {
-      console.warn('Email sending failed, AUTO-VERIFYING user:', emailResult.error);
-      await this.usersService.update(newUser._id.toString(), { isVerified: true });
-      return { message: 'User created and verified (Email skipped due to error).', email: newUser.email };
+      throw new BadRequestException('Email yuborishda xatolik: ' + emailResult.error);
     }
-
-    return { message: 'User created. Verification code sent.', email: newUser.email };
+    return { message: 'Tasdiqlash kodi yuborildi', email: newUser.email };
   }
 
   async resendVerification(email: string) {
@@ -149,7 +147,24 @@ export class AuthService {
     return { message: 'Email tasdiqlandi' };
   }
 
-  async socialLogin(data: { email: string; name: string; avatar?: string }) {
+  async googleLogin(idToken: string) {
+    if (typeof idToken !== 'string' || !idToken || idToken.length > 10000 || !process.env.GOOGLE_CLIENT_ID) {
+      throw new UnauthorizedException('Google tasdig‘i talab qilinadi');
+    }
+    let profile;
+    try {
+      const ticket = await new OAuth2Client().verifyIdToken({idToken, audience: process.env.GOOGLE_CLIENT_ID});
+      profile = ticket.getPayload();
+    } catch {
+      throw new UnauthorizedException('Google tasdig‘i yaroqsiz');
+    }
+    if (!profile?.sub || !profile.email || profile.email_verified !== true) {
+      throw new UnauthorizedException('Google email tasdiqlanmagan');
+    }
+    return this.socialLogin({email:profile.email,name:profile.name || profile.email.split('@')[0],avatar:profile.picture});
+  }
+
+  private async socialLogin(data: { email: string; name: string; avatar?: string }) {
     try {
       this.logger.debug(`Social login: Finding user by email: ${data.email}`);
       let user = await this.usersService.findByEmail(data.email);
@@ -161,7 +176,7 @@ export class AuthService {
           name: data.name,
           avatar: data.avatar,
           isVerified: true,
-          password: await bcrypt.hash(Math.random().toString(36).slice(-10), 10),
+          password: await bcrypt.hash(randomBytes(32).toString('hex'), 10),
         });
         this.logger.log(`Social login: User created successfully: ${user._id}`);
       } else if (!user.isVerified) {
